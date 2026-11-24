@@ -29,6 +29,10 @@ jobs:
       - name: Generate Windows runner
         run: flutter create --platforms=windows --project-name xp_p323b_windows .
 
+      - name: Integrate XP-P323B native Windows bridge
+        shell: pwsh
+        run: ./scripts/configure_windows_bridge.ps1
+
       - name: Get dependencies
         run: flutter pub get
 

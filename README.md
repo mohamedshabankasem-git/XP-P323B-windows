@@ -18,9 +18,21 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 
 تعرض الصفحة حزمة Windows Driver بحجم معلن 85 MB وWindows SDK. زر التعريف في التطبيق يفتح صفحة الشركة الرسمية؛ لا يقوم التطبيق في هذه المرحلة بتثبيت حزمة غير مفحوصة أو تشغيلها بصلاحيات المسؤول تلقائيًا.
 
+## حزمة Windows ومتطلبات التشغيل
+
+يحتوي مجلد الإصدار على ملف التطبيق التنفيذي وملفات Flutter والإضافات التابعة له. أثناء تجهيز الإصدار، ينسخ GitHub Actions ملفات Visual C++ Runtime المطابقة لمعمارية x64 إلى جانب ملف EXE، بما فيها الملفات الأساسية:
+
+- `MSVCP140.dll`
+- `VCRUNTIME140.dll`
+- `VCRUNTIME140_1.dll`
+
+ويتم تضمين بقية ملفات DLL والـ manifest الموجودة في مجلد Microsoft.VC143.CRT الخاص ببيئة البناء. كما يتحقق سير العمل من وجود الملفات الأساسية قبل رفع الحزمة، ويفشل إذا كانت ناقصة.
+
+هذا يجعل حزمة التطبيق مستقلة عن تثبيت Microsoft Visual C++ Redistributable على أجهزة Windows 10/11 المدعومة، لكنه لا يضمّن تعريف الطابعة نفسه أو مكونات Windows النظامية.
+
 ## البناء والتحقق
 
-يتطلب Windows 10/11 وFlutter stable وVisual Studio Desktop development with C++.
+يتطلب بناء المشروع Windows 10/11 وFlutter stable وVisual Studio Desktop development with C++.
 
 أوامر البناء:
 - flutter config --enable-windows-desktop
@@ -30,13 +42,14 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 - flutter test
 - flutter build windows --release
 
-يتم تنفيذ نفس الخطوات في GitHub Actions على windows-latest ورفع مجلد Release كـ artifact.
+يتم تنفيذ الخطوات في GitHub Actions على windows-latest، ثم تجهيز ملفات Visual C++ Runtime والتحقق منها ورفع مجلد Release كـ artifact.
 
 ## حالة التنفيذ
 
 - [x] أساس واجهة Windows وإعدادات الورق الأولية.
 - [x] رابط صفحة تعريف Xprinter الرسمية.
 - [x] سير عمل التحقق وبناء Windows Release.
+- [x] تضمين ملفات Visual C++ Runtime الأساسية في حزمة Windows والتحقق منها أثناء البناء.
 - [ ] تثبيت التعريف آليًا بعد التحقق من ملف الشركة وتوقيعه وطريقة تثبيته.
 - [ ] جسر Windows أصلي لاكتشاف USB وBluetooth وإرسال ESC/POS الخام.
 - [ ] استقبال الملفات ومعاينة Raster والطباعة.

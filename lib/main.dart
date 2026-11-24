@@ -190,8 +190,8 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                               ],
                             ),
                           ),
-                          const Chip(
-                            avatar: Icon(Icons.info_outline, size: 18),
+                          Chip(
+                            avatar: const Icon(Icons.info_outline, size: 18),
                             label: Text(_connectedDevice == null ? 'غير متصل' : 'متصل'),
                           ),
                         ],

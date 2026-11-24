@@ -10,6 +10,7 @@ namespace {
 HANDLE g_serial = INVALID_HANDLE_VALUE;
 HANDLE g_printer = nullptr;
 DWORD g_job_id = 0;
+bool g_page_started = false;
 
 std::wstring Utf8ToWide(const std::string& value) {
   if (value.empty()) return {};
@@ -88,6 +89,7 @@ flutter::EncodableList EnumerateBluetoothSerialPorts() {
 
 void CloseConnection() {
   if (g_printer) {
+    if (g_page_started) EndPagePrinter(g_printer);
     if (g_job_id) EndDocPrinter(g_printer);
     ClosePrinter(g_printer);
   }
@@ -95,6 +97,7 @@ void CloseConnection() {
   g_printer = nullptr;
   g_serial = INVALID_HANDLE_VALUE;
   g_job_id = 0;
+  g_page_started = false;
 }
 
 void RegisterMethodChannel(flutter::BinaryMessenger* messenger) {
@@ -151,6 +154,7 @@ void RegisterMethodChannel(flutter::BinaryMessenger* messenger) {
                           flutter::EncodableValue(static_cast<int>(error)));
             return;
           }
+          g_page_started = true;
           result->Success(flutter::EncodableValue(true));
           return;
         }

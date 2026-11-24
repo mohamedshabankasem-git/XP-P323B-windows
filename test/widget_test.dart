@@ -6,6 +6,6 @@ void main() {
     await tester.pumpWidget(const XpPrinterWindowsApp());
     expect(find.text('Xprinter XP-P323B'), findsOneWidget);
     expect(find.text('تعريف Windows الرسمي'), findsOneWidget);
-    expect(find.text('إعدادات الطباعة'), findsOneWidget);
+    expect(find.text('فتح تعريف XP-P323B الرسمي'), findsOneWidget);
   });
 }

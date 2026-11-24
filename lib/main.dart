@@ -113,7 +113,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           DropdownButtonFormField<String>(
-                            value: _connection,
+                            initialValue: _connection,
                             decoration: const InputDecoration(
                                 labelText: 'طريقة الاتصال',
                                 border: OutlineInputBorder()),
@@ -133,7 +133,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                           const Text(
                               'سيظهر الجهاز هنا بعد إضافة اكتشاف USB وBluetooth في طبقة Windows الأصلية.'),
                           const SizedBox(height: 12),
-                          const FilledButton.icon(
+                          FilledButton.icon(
                             onPressed: null,
                             icon: Icon(Icons.search),
                             label: Text('البحث عن الطابعة - قيد التنفيذ'),
@@ -177,7 +177,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                       child: Column(
                         children: [
                           DropdownButtonFormField<String>(
-                            value: _paper,
+                            initialValue: _paper,
                             decoration: const InputDecoration(
                                 labelText: 'عرض الورق',
                                 border: OutlineInputBorder()),

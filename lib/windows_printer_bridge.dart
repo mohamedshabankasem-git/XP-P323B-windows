@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 /// Windows-only bridge for the native XP-P323B transport layer.

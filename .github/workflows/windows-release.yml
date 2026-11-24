@@ -41,6 +41,82 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
+      # Flutter's release folder contains the app and Flutter/plugin DLLs.
+      # Add the matching x64 MSVC CRT beside the EXE so Windows can load
+      # the app even when the VC++ runtime is not installed system-wide.
+      - name: Bundle Visual C++ runtime DLLs
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/runner/Release"
+          if (-not (Test-Path $releaseDir)) {
+            throw "Windows release directory was not found: $releaseDir"
+          }
+
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe was not found; cannot locate the Visual C++ runtime."
+          }
+
+          $vsInstall = & $vswhere -latest -products '*' -property installationPath
+          if (-not $vsInstall) {
+            throw "Visual Studio installation was not found on the build runner."
+          }
+
+          $redistRoot = Join-Path $vsInstall "VC/Redist/MSVC"
+          if (-not (Test-Path $redistRoot)) {
+            throw "Visual C++ redistributable files were not found: $redistRoot"
+          }
+
+          $crtDir = Get-ChildItem -Path $redistRoot -Directory |
+            Sort-Object Name -Descending |
+            ForEach-Object {
+              $candidate = Join-Path $_.FullName "x64/Microsoft.VC143.CRT"
+              if (Test-Path $candidate) { Get-Item $candidate }
+            } |
+            Select-Object -First 1
+
+          if (-not $crtDir) {
+            throw "The x64 Microsoft.VC143.CRT directory was not found."
+          }
+
+          $requiredDlls = @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+          $availableDlls = Get-ChildItem -Path $crtDir.FullName -Filter "*.dll" -File
+          foreach ($dll in $requiredDlls) {
+            if (-not ($availableDlls | Where-Object { $_.Name -ieq $dll })) {
+              throw "Required Visual C++ runtime DLL is missing: $dll"
+            }
+          }
+
+          Copy-Item -Path (Join-Path $crtDir.FullName "*") -Destination $releaseDir -Recurse -Force
+
+          foreach ($dll in $requiredDlls) {
+            if (-not (Test-Path (Join-Path $releaseDir $dll))) {
+              throw "Failed to bundle required runtime DLL: $dll"
+            }
+          }
+
+          Write-Host "Bundled x64 Visual C++ runtime from $($crtDir.FullName)"
+          Get-ChildItem -Path $releaseDir -Filter "*.dll" |
+            Select-Object Name, Length |
+            Format-Table -AutoSize
+
+      - name: Verify release package
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/runner/Release"
+          $requiredFiles = @(
+            "xp_p323b_windows.exe",
+            "flutter_windows.dll",
+            "msvcp140.dll",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll"
+          )
+          foreach ($file in $requiredFiles) {
+            if (-not (Test-Path (Join-Path $releaseDir $file))) {
+              throw "Release package is incomplete; missing: $file"
+            }
+          }
+
       - name: Upload Windows release
         uses: actions/upload-artifact@v4
         with:

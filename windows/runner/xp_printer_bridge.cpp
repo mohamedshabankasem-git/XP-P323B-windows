@@ -1,5 +1,8 @@
 #include "xp_printer_bridge.h"
 
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+
 #include <windows.h>
 #include <winspool.h>
 

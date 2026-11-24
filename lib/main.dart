@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const _driverPage = 'https://www.xprintertech.com/kiosk-mecha/xp-p323b';

@@ -55,6 +55,7 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 - [ ] تضييق اكتشاف Bluetooth إلى منافذ SPP التابعة لأجهزة Bluetooth فقط، والتحقق من اسم/هوية XP-P323B.
 - [ ] اختبار الاتصال والإرسال على طابعة فعلية عبر USB وBluetooth.
 - [ ] استقبال الملفات ومعاينة Raster والطباعة.
+- [x] نقل محرك تحويل الصور إلى ESC/POS Raster مع Floyd-Steinberg وAtkinson وOrdered وThreshold، ومحاذاة برمجية واختبارات.
 - [ ] اختبار فعلي على XP-P323B عبر USB وBluetooth.
 
 ## جسر الاتصال الأصلي - المرحلة الأولى

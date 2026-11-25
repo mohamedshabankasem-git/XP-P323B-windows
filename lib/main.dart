@@ -366,7 +366,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                              'سيظهر الجهاز هنا بعد إضافة اكتشاف USB وBluetooth في طبقة Windows الأصلية.'),
+                              'اختر طريقة الاتصال ثم ابحث عن الطابعة المتصلة عبر USB أو Bluetooth.'),
                           const SizedBox(height: 12),
                           FilledButton.icon(
                             onPressed: _isSearching ? null : _searchPrinters,

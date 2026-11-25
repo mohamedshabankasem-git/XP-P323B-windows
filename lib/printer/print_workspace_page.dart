@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 
 import '../windows_printer_bridge.dart';
 import 'raster_print.dart';
@@ -29,6 +29,22 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
   String _alignment = 'left';
   String _mode = 'floydSteinberg';
   bool _busy = false;
+  late Future<Uint8List> _previewFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPreview();
+  }
+
+  void _refreshPreview() {
+    _previewFuture = compute(_previewWorker, <String, Object>{
+      'bytes': widget.pages[_pageIndex],
+      'width': widget.paperWidth,
+      'alignment': _alignment,
+      'mode': _mode,
+    });
+  }
 
   Future<void> _print({required bool allPages}) async {
     if (!widget.connected) {
@@ -70,18 +86,16 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
     );
   }
 
-  Uint8List get _preview {
-    return RasterPrint.imageToPreviewPng(
-      widget.pages[_pageIndex],
-      maxWidth: widget.paperWidth,
-      alignment: _alignment,
-      mode: _mode,
-    );
+  @override
+  void didUpdateWidget(covariant PrintWorkspacePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pages != widget.pages || oldWidget.paperWidth != widget.paperWidth) {
+      _refreshPreview();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final decoded = img.decodeImage(widget.pages[_pageIndex]);
     return Scaffold(
       appBar: AppBar(title: const Text('معاينة الطباعة')),
       body: Center(
@@ -113,7 +127,10 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                         ],
                         onChanged: _busy
                             ? null
-                            : (value) => setState(() => _alignment = value ?? 'left'),
+                            : (value) => setState(() {
+                                  _alignment = value ?? 'left';
+                                  _refreshPreview();
+                                }),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
@@ -130,18 +147,34 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                         ],
                         onChanged: _busy
                             ? null
-                            : (value) => setState(() => _mode = value ?? 'floydSteinberg'),
+                            : (value) => setState(() {
+                                  _mode = value ?? 'floydSteinberg';
+                                  _refreshPreview();
+                                }),
                       ),
                       const SizedBox(height: 16),
                       Container(
                         color: Colors.white,
                         alignment: Alignment.topCenter,
                         padding: const EdgeInsets.all(8),
-                        child: Image.memory(
-                          _preview,
-                          fit: BoxFit.contain,
-                          width: 420,
-                          errorBuilder: (_, __, ___) => const Text('تعذرت معاينة الملف'),
+                        child: FutureBuilder<Uint8List>(
+                          future: _previewFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return Text('تعذرت معاينة الملف: ${snapshot.error}');
+                            }
+                            if (!snapshot.hasData) {
+                              return const Padding(
+                                padding: EdgeInsets.all(28),
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            return Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.contain,
+                              width: 420,
+                            );
+                          },
                         ),
                       ),
                       if (widget.pages.length > 1) ...[
@@ -152,14 +185,20 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                             OutlinedButton.icon(
                               onPressed: _busy || _pageIndex == 0
                                   ? null
-                                  : () => setState(() => _pageIndex--),
+                                  : () => setState(() {
+                                    _pageIndex--;
+                                    _refreshPreview();
+                                  }),
                               icon: const Icon(Icons.chevron_right),
                               label: const Text('السابق'),
                             ),
                             OutlinedButton.icon(
                               onPressed: _busy || _pageIndex == widget.pages.length - 1
                                   ? null
-                                  : () => setState(() => _pageIndex++),
+                                  : () => setState(() {
+                                    _pageIndex++;
+                                    _refreshPreview();
+                                  }),
                               icon: const Icon(Icons.chevron_left),
                               label: const Text('التالي'),
                             ),
@@ -186,15 +225,19 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                   label: const Text('طباعة جميع الصفحات'),
                 ),
               ],
-              if (decoded == null)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('تنبيه: لم يتمكن المحلل من قراءة أبعاد الصورة الأصلية.'),
-                ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+Uint8List _previewWorker(Map<String, Object> args) {
+  return RasterPrint.imageToPreviewPng(
+    args['bytes']! as Uint8List,
+    maxWidth: args['width']! as int,
+    alignment: args['alignment']! as String,
+    mode: args['mode']! as String,
+  );
 }

@@ -1,7 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../windows_printer_bridge.dart';
 import 'raster_print.dart';

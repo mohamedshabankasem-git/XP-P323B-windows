@@ -452,7 +452,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                             leading: Icon(Icons.receipt_long),
                             title: Text('محرك ESC/POS Raster'),
                             subtitle: Text(
-                                'سيتم ربط الإرسال الخام عبر USB وBluetooth في طبقة Windows الأصلية.'),
+                                'يتم إرسال بيانات ESC/POS Raster مباشرة عبر اتصال الطابعة المحدد.'),
                           ),
                           const Divider(),
                           const ListTile(
@@ -460,7 +460,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                             leading: Icon(Icons.preview_outlined),
                             title: Text('معاينة الصور وPDF والنصوص'),
                             subtitle: Text(
-                                'واجهة استقبال الملفات والمعاينة والطباعة ضمن المرحلة التالية.'),
+                                'اختر صورة أو PDF أو نصًا من قسم الملفات والطباعة لمعاينته قبل الإرسال.'),
                           ),
                         ],
                       ),

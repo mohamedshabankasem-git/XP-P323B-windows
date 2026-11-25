@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
+import 'package:image/image.dart' as img;
 
 class LoadedPrintDocument {
   const LoadedPrintDocument({
@@ -32,6 +33,9 @@ class PrintDocumentLoader {
 
     if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tif', 'tiff']
         .contains(extension)) {
+      if (img.decodeImage(bytes) == null) {
+        throw const FormatException('Unsupported or damaged image.');
+      }
       return LoadedPrintDocument(
         name: _fileName(path),
         pages: [Uint8List.fromList(bytes)],
@@ -78,7 +82,7 @@ class PrintDocumentLoader {
           final rendered = await page.render(
             width: paperWidth,
             height: height,
-            format: PdfPageImageFormat.png,
+            format: PdfPageImageFormat.PNG,
             backgroundColor: '#FFFFFF',
           );
           if (rendered == null) {

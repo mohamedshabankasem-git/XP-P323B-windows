@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'windows_printer_bridge.dart';
 
 const _driverPage = 'https://www.xprintertech.com/kiosk-mecha/xp-p323b';
 
@@ -32,6 +34,98 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   String _paper = '58 mm - 384 dots';
   String _connection = 'USB';
   String _language = 'العربية';
+  String? _connectedDevice;
+  bool _isSearching = false;
+
+  Future<void> _searchPrinters() async {
+    setState(() => _isSearching = true);
+    try {
+      final devices = _connection == 'USB'
+          ? await WindowsPrinterBridge.listUsbPrinters()
+          : await WindowsPrinterBridge.listBluetoothPorts();
+      if (!mounted) return;
+      if (devices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_connection == 'USB'
+              ? 'لم يتم العثور على طابعات Windows. تحقق من توصيل USB وتثبيت التعريف.'
+              : 'لم يتم العثور على منافذ Bluetooth. قم بإقران الطابعة من إعدادات Windows أولاً.')),
+        );
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(_connection == 'USB' ? 'طابعات Windows' : 'منافذ Bluetooth'),
+          content: SizedBox(
+            width: 460,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: devices.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final device = devices[index];
+                final name = (device['name'] ?? '').toString();
+                final detail = (device['port'] ?? device['description'] ?? '').toString();
+                return ListTile(
+                  leading: Icon(_connection == 'USB' ? Icons.print : Icons.bluetooth),
+                  title: Text(name),
+                  subtitle: detail.isEmpty ? null : Text(detail),
+                  onTap: () async {
+                    Navigator.of(dialogContext).pop();
+                    try {
+                      if (_connection == 'USB') {
+                        await WindowsPrinterBridge.connectUsb(name);
+                      } else {
+                        await WindowsPrinterBridge.connectBluetooth(name);
+                      }
+                      if (!mounted) return;
+                      setState(() => _connectedDevice = name);
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text('تم الاتصال بـ $name')),
+                      );
+                    } on PlatformException catch (error) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text('فشل الاتصال: ${error.message ?? error.code}')),
+                      );
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('إغلاق'))],
+        ),
+      );
+    } on PlatformException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر البحث: ${error.message ?? error.code}')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء البحث: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  Future<void> _disconnectPrinter() async {
+    try {
+      await WindowsPrinterBridge.disconnect();
+      if (mounted) setState(() => _connectedDevice = null);
+    } on PlatformException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر قطع الاتصال: ${error.message ?? error.code}')),
+        );
+      }
+    }
+  }
 
   Future<void> _openDriverPage() async {
     final opened = await launchUrl(
@@ -96,9 +190,9 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                               ],
                             ),
                           ),
-                          const Chip(
-                            avatar: Icon(Icons.info_outline, size: 18),
-                            label: Text('غير متصل'),
+                          Chip(
+                            avatar: const Icon(Icons.info_outline, size: 18),
+                            label: Text(_connectedDevice == null ? 'غير متصل' : 'متصل'),
                           ),
                         ],
                       ),
@@ -134,10 +228,24 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                               'سيظهر الجهاز هنا بعد إضافة اكتشاف USB وBluetooth في طبقة Windows الأصلية.'),
                           const SizedBox(height: 12),
                           FilledButton.icon(
-                            onPressed: null,
-                            icon: Icon(Icons.search),
-                            label: Text('البحث عن الطابعة - قيد التنفيذ'),
+                            onPressed: _isSearching ? null : _searchPrinters,
+                            icon: _isSearching
+                                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.search),
+                            label: Text(_isSearching ? 'جارٍ البحث...' : 'البحث عن الطابعة'),
                           ),
+                          if (_connectedDevice != null) ...[
+                            const SizedBox(height: 10),
+                            Text('الطابعة المتصلة: $_connectedDevice'),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: TextButton.icon(
+                                onPressed: _disconnectPrinter,
+                                icon: const Icon(Icons.link_off),
+                                label: const Text('قطع الاتصال'),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

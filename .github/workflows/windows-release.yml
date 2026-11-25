@@ -113,6 +113,8 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/runner/Release"
           Copy-Item "scripts/register_file_associations.ps1" $releaseDir
           Copy-Item "scripts/unregister_file_associations.ps1" $releaseDir
+          Copy-Item "scripts/Register-File-Associations.bat" $releaseDir
+          Copy-Item "scripts/Unregister-File-Associations.bat" $releaseDir
 
       - name: Verify release package
         shell: pwsh

@@ -54,7 +54,10 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 - [x] إضافة جسر Windows أصلي مبدئي عبر MethodChannel: طوابير الطباعة المثبتة (RAW spooler) ومنافذ COM.
 - [ ] تضييق اكتشاف Bluetooth إلى منافذ SPP التابعة لأجهزة Bluetooth فقط، والتحقق من اسم/هوية XP-P323B.
 - [ ] اختبار الاتصال والإرسال على طابعة فعلية عبر USB وBluetooth.
-- [ ] استقبال الملفات ومعاينة Raster والطباعة.
+- [x] اختيار الصور وملفات PDF والنصوص من داخل التطبيق.
+- [x] تجهيز معاينة Raster من نفس بيانات الطباعة.
+- [x] تسجيل Open with وSend to لأنواع الصور وPDF والنصوص عبر سكربتات PowerShell.
+- [ ] اختبار فتح الملفات من Windows Shell والطباعة الفعلية على XP-P323B.
 - [x] نقل محرك تحويل الصور إلى ESC/POS Raster مع Floyd-Steinberg وAtkinson وOrdered وThreshold، ومحاذاة برمجية واختبارات.
 - [ ] اختبار فعلي على XP-P323B عبر USB وBluetooth.
 
@@ -68,3 +71,16 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 - لم يتم بعد تنفيذ إرسال ESC/POS من واجهة الطباعة، ولم يتم إجراء اختبار مادي على الجهاز.
 
 **مهم:** يجب إقران الطابعة في إعدادات Windows أولًا عند استخدام Bluetooth، وتثبيت تعريف Windows الرسمي عند استخدام طابور USB.
+
+
+## فتح الملفات من Windows
+
+بعد استخراج مجلد Release، شغّل PowerShell داخل المجلد ونفّذ:
+
+```powershell
+.\\register_file_associations.ps1 -ExePath ".\\xp_p323b_windows.exe"
+```
+
+يسجل السكربت التطبيق ضمن **Open with** ويضيف اختصارًا إلى **Send to** للصور وPDF والملفات النصية. عند اختيار ملف، يفتح التطبيق الملف مباشرة في شاشة المعاينة. لا يغيّر السكربت التطبيق الافتراضي للملفات. لإلغاء التسجيل شغّل `unregister_file_associations.ps1`.
+
+ملاحظة: هذا تكامل Windows Shell الكلاسيكي (Open with / Send to)، وليس تطبيق UWP يظهر كهدف داخل لوحة مشاركة Windows الحديثة.

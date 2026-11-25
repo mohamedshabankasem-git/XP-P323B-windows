@@ -238,7 +238,7 @@ class RasterPrint {
       raster.height & 0xFF,
       (raster.height >> 8) & 0xFF,
       ...raster.data,
-      if (feedAfterPrint) 0x0A, 0x0A,
+      if (feedAfterPrint) ...<int>[0x0A, 0x0A],
       0x1B, 0x61, 0x00, // Reset justification.
     ];
   }

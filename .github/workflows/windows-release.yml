@@ -36,6 +36,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Configure PDFium for Windows
+        run: dart run pdfx:install_windows
+
       - name: Analyze
         run: flutter analyze
 
@@ -103,6 +106,13 @@ jobs:
           Get-ChildItem -Path $releaseDir -Filter "*.dll" |
             Select-Object Name, Length |
             Format-Table -AutoSize
+
+      - name: Include file association scripts
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/runner/Release"
+          Copy-Item "scripts/register_file_associations.ps1" $releaseDir
+          Copy-Item "scripts/unregister_file_associations.ps1" $releaseDir
 
       - name: Verify release package
         shell: pwsh

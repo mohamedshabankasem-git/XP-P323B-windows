@@ -75,12 +75,8 @@ https://www.xprintertech.com/kiosk-mecha/xp-p323b
 
 ## فتح الملفات من Windows
 
-بعد استخراج مجلد Release، شغّل PowerShell داخل المجلد ونفّذ:
+بعد استخراج مجلد Release، شغّل `Register-File-Associations.bat` بنقرتين لتسجيل التطبيق، أو `Unregister-File-Associations.bat` لإلغاء التسجيل.
 
-```powershell
-.\\register_file_associations.ps1 -ExePath ".\\xp_p323b_windows.exe"
-```
-
-يسجل السكربت التطبيق ضمن **Open with** ويضيف اختصارًا إلى **Send to** للصور وPDF والملفات النصية. عند اختيار ملف، يفتح التطبيق الملف مباشرة في شاشة المعاينة. لا يغيّر السكربت التطبيق الافتراضي للملفات. لإلغاء التسجيل شغّل `unregister_file_associations.ps1`.
+يسجل السكربت التطبيق ضمن **Open with** ويضيف اختصارًا إلى **Send to** للصور وPDF والملفات النصية. عند اختيار ملف، يفتح التطبيق الملف مباشرة في شاشة المعاينة. لا يغيّر التسجيل التطبيق الافتراضي للملفات.
 
 ملاحظة: هذا تكامل Windows Shell الكلاسيكي (Open with / Send to)، وليس تطبيق UWP يظهر كهدف داخل لوحة مشاركة Windows الحديثة.

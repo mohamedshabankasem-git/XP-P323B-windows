@@ -1,14 +1,26 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'windows_printer_bridge.dart';
+import 'printer/print_document_loader.dart';
+import 'printer/print_workspace_page.dart';
 
 const _driverPage = 'https://www.xprintertech.com/kiosk-mecha/xp-p323b';
 
-void main() => runApp(const XpPrinterWindowsApp());
+void main(List<String> args) {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(XpPrinterWindowsApp(
+    initialFilePath: args.isEmpty ? null : args.first,
+  ));
+}
 
 class XpPrinterWindowsApp extends StatelessWidget {
-  const XpPrinterWindowsApp({super.key});
+  const XpPrinterWindowsApp({super.key, this.initialFilePath});
+
+  final String? initialFilePath;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -19,12 +31,14 @@ class XpPrinterWindowsApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1769AA)),
           scaffoldBackgroundColor: const Color(0xFFF4F6F8),
         ),
-        home: const PrinterHomePage(),
+        home: PrinterHomePage(initialFilePath: initialFilePath),
       );
 }
 
 class PrinterHomePage extends StatefulWidget {
-  const PrinterHomePage({super.key});
+  const PrinterHomePage({super.key, this.initialFilePath});
+
+  final String? initialFilePath;
 
   @override
   State<PrinterHomePage> createState() => _PrinterHomePageState();
@@ -36,6 +50,89 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   String _language = 'العربية';
   String? _connectedDevice;
   bool _isSearching = false;
+  bool _isOpeningFile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialPath = widget.initialFilePath;
+    if (initialPath != null && initialPath.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openDocumentFromPath(initialPath);
+      });
+    }
+  }
+
+  int get _paperWidth {
+    if (_paper == '58 mm - 400 dots') return 400;
+    if (_paper == '80 mm') return 576;
+    return 384;
+  }
+
+  Future<void> _pickImage() async {
+    await _pickAndOpen(allowed: const [
+      'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tif', 'tiff',
+    ]);
+  }
+
+  Future<void> _pickFile() async {
+    await _pickAndOpen(allowed: const [
+      'png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tif', 'tiff',
+      'pdf', 'txt', 'csv', 'log',
+    ]);
+  }
+
+  Future<void> _pickAndOpen({required List<String> allowed}) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: allowed,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null || path.isEmpty) {
+        throw const FormatException('تعذر الحصول على مسار الملف.');
+      }
+      await _openDocumentFromPath(path);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر فتح الملف: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openDocumentFromPath(String path) async {
+    if (_isOpeningFile) return;
+    setState(() => _isOpeningFile = true);
+    try {
+      final document = await PrintDocumentLoader.fromPath(
+        path,
+        paperWidth: _paperWidth,
+      );
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PrintWorkspacePage(
+            name: document.name,
+            pages: document.pages,
+            paperWidth: _paperWidth,
+            connected: _connectedDevice != null,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر تجهيز الملف للطباعة: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isOpeningFile = false);
+    }
+  }
 
   Future<void> _searchPrinters() async {
     setState(() => _isSearching = true);
@@ -193,6 +290,52 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                           Chip(
                             avatar: const Icon(Icons.info_outline, size: 18),
                             label: Text(_connectedDevice == null ? 'غير متصل' : 'متصل'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _sectionTitle('الملفات والطباعة'),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'اختر صورة أو ملف PDF أو نصًا، ثم راجع معاينة الورق قبل إرسال أمر الطباعة.',
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: _isOpeningFile ? null : _pickImage,
+                                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                                  label: const Text('إدراج صورة'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isOpeningFile ? null : _pickFile,
+                                  icon: const Icon(Icons.folder_open),
+                                  label: const Text('فتح ملف'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_isOpeningFile) ...[
+                            const SizedBox(height: 12),
+                            const LinearProgressIndicator(),
+                            const SizedBox(height: 6),
+                            const Text('جارٍ تجهيز الملف والمعاينة...'),
+                          ],
+                          const SizedBox(height: 8),
+                          const Text(
+                            'يمكن أيضًا فتح الملف من مستكشف Windows عبر Open with أو Send to بعد تسجيل التطبيق.',
+                            style: TextStyle(color: Colors.black54),
                           ),
                         ],
                       ),

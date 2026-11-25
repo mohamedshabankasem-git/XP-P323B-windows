@@ -47,7 +47,7 @@ class PrintDocumentLoader {
       final text = utf8.decode(bytes, allowMalformed: true);
       return LoadedPrintDocument(
         name: _fileName(path),
-        pages: [_renderText(text, paperWidth)],
+        pages: [await _renderText(text, paperWidth)],
         kind: 'text',
       );
     }
@@ -99,7 +99,7 @@ class PrintDocumentLoader {
     );
   }
 
-  static Uint8List _renderText(String value, int paperWidth) {
+  static Future<Uint8List> _renderText(String value, int paperWidth) async {
     final rtl = RegExp(r'[\u0600-\u06FF]').hasMatch(value);
     final painter = TextPainter(
       text: TextSpan(
@@ -120,8 +120,8 @@ class PrintDocumentLoader {
     canvas.drawColor(Colors.white, BlendMode.src);
     painter.paint(canvas, const Offset(16, 16));
     final picture = recorder.endRecording();
-    final image = picture.toImageSync(paperWidth, height);
-    final data = image.toByteData(format: ui.ImageByteFormat.png);
+    final image = await picture.toImage(paperWidth, height);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
     final result = data!.buffer.asUint8List();
     image.dispose();
     picture.dispose();

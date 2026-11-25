@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart';
 import 'package:image/image.dart' as img;
+import 'package:material_ui/material_ui.dart';
+import 'package:pdfx/pdfx.dart';
 
 class LoadedPrintDocument {
   const LoadedPrintDocument({
@@ -85,9 +85,9 @@ class PrintDocumentLoader {
           final width = (page.width * scale).round().clamp(1, paperWidth);
           final height = (page.height * scale).round().clamp(1, 4096);
           final rendered = await page.render(
-            width: width,
-            height: height,
-            format: PdfPageImageFormat.PNG,
+            width: width.toDouble(),
+            height: height.toDouble(),
+            format: PdfPageImageFormat.png,
             backgroundColor: '#FFFFFF',
           );
           if (rendered == null) {

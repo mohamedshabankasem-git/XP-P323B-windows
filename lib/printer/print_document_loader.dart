@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -69,18 +70,22 @@ class PrintDocumentLoader {
       if (document.pagesCount < 1) {
         throw const FormatException('The PDF has no pages.');
       }
-      if (document.pagesCount > 100) {
+      if (document.pagesCount > 50) {
         throw const FormatException(
-          'PDF files are limited to 100 pages per print job.',
+          'PDF files are limited to 50 pages per print job.',
         );
       }
       for (var number = 1; number <= document.pagesCount; number++) {
         final page = await document.getPage(number);
         try {
-          final scale = paperWidth / page.width;
+          final scale = math.min(
+            paperWidth / page.width,
+            4096 / page.height,
+          );
+          final width = (page.width * scale).round().clamp(1, paperWidth);
           final height = (page.height * scale).round().clamp(1, 4096);
           final rendered = await page.render(
-            width: paperWidth,
+            width: width,
             height: height,
             format: PdfPageImageFormat.PNG,
             backgroundColor: '#FFFFFF',

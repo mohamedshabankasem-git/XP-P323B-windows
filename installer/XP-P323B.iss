@@ -33,6 +33,9 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "payload\XP-P323B.VirtualPrinter.msix"; DestDir: "{app}\VirtualPrinter"; Flags: ignoreversion
+Source: "install_virtual_printer.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "uninstall_virtual_printer.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Registry]
 Root: HKCU; Subkey: "Software\XP-P323B\Windows"; ValueType: string; ValueName: "AppExePath"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletevalue
@@ -42,8 +45,10 @@ Name: "{autoprograms}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; Work
 Name: "{autodesktop}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install_virtual_printer.ps1"" -MsixPath ""{app}\VirtualPrinter\XP-P323B.VirtualPrinter.msix"""; Flags: runhidden waituntilterminated runascurrentuser
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\register_file_associations.ps1"" -ExePath ""{app}\{#MyAppExeName}"""; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch XP-P323B Windows"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall_virtual_printer.ps1"""; Flags: runhidden waituntilterminated runascurrentuser
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\unregister_file_associations.ps1"""; Flags: runhidden waituntilterminated

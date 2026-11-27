@@ -7,19 +7,20 @@ Add-Type -AssemblyName System.Drawing
 function New-XpLogo {
   param([int]$Size, [string]$Path)
 
-  $bitmap = New-Object System.Drawing.Bitmap($Size, $Size)
+  $bitmap = [System.Drawing.Bitmap]::new($Size, $Size)
   $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
   try {
     $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $graphics.Clear([System.Drawing.Color]::FromArgb(23, 105, 170))
     $fontSize = [Math]::Max(8, [int]($Size * 0.34))
-    $font = New-Object System.Drawing.Font("Arial", $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-    $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+    $font = [System.Drawing.Font]::new("Arial", $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
+    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
     try {
-      $format = New-Object System.Drawing.StringFormat
+      $format = [System.Drawing.StringFormat]::new()
       $format.Alignment = [System.Drawing.StringAlignment]::Center
       $format.LineAlignment = [System.Drawing.StringAlignment]::Center
-      $graphics.DrawString("XP", $font, $brush, [System.Drawing.RectangleF]::new(0, 0, $Size, $Size), $format)
+      $bounds = [System.Drawing.RectangleF]::new(0, 0, $Size, $Size)
+      $graphics.DrawString("XP", $font, $brush, $bounds, $format)
       $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
     } finally {
       $format.Dispose()

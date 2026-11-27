@@ -1,0 +1,47 @@
+name: Windows 11 Virtual Printer
+
+on:
+  push:
+    branches: [feature/windows11-virtual-printer-psa]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-psa-msix:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Windows 11 PSA package
+        shell: pwsh
+        run: ./scripts/build_virtual_printer.ps1
+
+      - name: Verify package output
+        shell: pwsh
+        run: |
+          $packages = Get-ChildItem -Path windows-virtual-printer -Recurse -File -Include *.msix,*.msixbundle
+          if (-not $packages) {
+            throw "The PSA build completed without producing an MSIX package."
+          }
+          $packages | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Upload unsigned MSIX package
+        uses: actions/upload-artifact@v4
+        with:
+          name: xp-p323b-virtual-printer-msix-unsigned
+          path: windows-virtual-printer/**/*.msix
+          if-no-files-found: error
+          retention-days: 14

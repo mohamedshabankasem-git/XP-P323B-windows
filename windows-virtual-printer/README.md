@@ -22,7 +22,7 @@ This is a real print-workflow implementation foundation, not yet the finished Fl
 Build on Windows 11 24H2 with Visual Studio 2026, Windows SDK 10.0.26100.0, .NET 10 SDK, and MSIX Packaging Tools:
 
 ```powershell
-msbuild .\windows-virtual-printer\PrintSupportApp\XP323B.VirtualPrinter.sln /restore /p:Configuration=Release /p:Platform=x64 /p:AppxPackageSigningEnabled=false
+.\scripts\build_virtual_printer.ps1
 ```
 
 The CI package is intentionally unsigned. A production installer must use a trusted signing certificate whose subject matches the package Publisher. Do not install a self-signed certificate into machine trust stores as a workaround.

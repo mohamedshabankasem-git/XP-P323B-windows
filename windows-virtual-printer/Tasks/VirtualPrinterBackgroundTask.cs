@@ -1,0 +1,114 @@
+using System;
+using System.Text.Json;
+using Windows.ApplicationModel;
+using Windows.ApplicationModel.Background;
+using Windows.Graphics.Printing.Workflow;
+using Windows.Storage;
+
+namespace Tasks;
+
+/// <summary>
+/// Receives a virtual-printer job and converts the Windows OXPS payload to PDF.
+/// The Flutter handoff is intentionally a separate, not-yet-enabled integration phase.
+/// </summary>
+public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
+{
+    private BackgroundTaskDeferral? _deferral;
+
+    public void Run(IBackgroundTaskInstance taskInstance)
+    {
+        _deferral = taskInstance.GetDeferral();
+
+        if (taskInstance.TriggerDetails is not PrintWorkflowVirtualPrinterTriggerDetails details)
+        {
+            _deferral.Complete();
+            _deferral = null;
+            return;
+        }
+
+        var session = details.VirtualPrinterSession;
+        session.VirtualPrinterDataAvailable += OnVirtualPrinterDataAvailable;
+        session.Start();
+    }
+
+    private async void OnVirtualPrinterDataAvailable(
+        PrintWorkflowVirtualPrinterSession sender,
+        PrintWorkflowVirtualPrinterDataAvailableEventArgs args)
+    {
+        var status = PrintWorkflowSubmittedStatus.Failed;
+        string? jobId = null;
+
+        try
+        {
+            var contentType = args.SourceContent.ContentType;
+            if (!string.Equals(contentType, "application/oxps", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NotSupportedException($"Unsupported print payload: {contentType}");
+            }
+
+            jobId = Guid.NewGuid().ToString("N");
+            var jobsFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
+                "VirtualPrinterJobs",
+                CreationCollisionOption.OpenIfExists);
+
+            var pdfFile = await jobsFolder.CreateFileAsync(
+                $"{jobId}.pdf",
+                CreationCollisionOption.FailIfExists);
+
+            using (var output = await pdfFile.OpenAsync(FileAccessMode.ReadWrite))
+            {
+                var converter = args.GetPdlConverter(PrintWorkflowPdlConversionType.XpsToPdf);
+                var printTicket = args.GetJobPrintTicket();
+                var input = args.SourceContent.GetInputStream();
+                var outputStream = output.GetOutputStreamAt(0);
+
+                await converter.ConvertPdlAsync(printTicket, input, outputStream);
+                await outputStream.FlushAsync();
+            }
+
+            var metadata = new
+            {
+                id = jobId,
+                createdUtc = DateTimeOffset.UtcNow,
+                contentType,
+                convertedFile = pdfFile.Name,
+                state = "captured",
+                packageFamilyName = Package.Current.Id.FamilyName
+            };
+
+            var metadataFile = await jobsFolder.CreateFileAsync(
+                $"{jobId}.json",
+                CreationCollisionOption.FailIfExists);
+            await FileIO.WriteTextAsync(metadataFile, JsonSerializer.Serialize(metadata, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+
+            // Complete the spooler job only after the converted document is safely stored.
+            status = PrintWorkflowSubmittedStatus.Succeeded;
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                var logFolder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
+                    "VirtualPrinterJobs",
+                    CreationCollisionOption.OpenIfExists);
+                var logFile = await logFolder.CreateFileAsync(
+                    $"failed-{jobId ?? Guid.NewGuid().ToString("N")}.txt",
+                    CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(logFile, exception.ToString());
+            }
+            catch
+            {
+                // Keep the original failed status if diagnostic logging also fails.
+            }
+        }
+        finally
+        {
+            args.CompleteJob(status);
+            _deferral?.Complete();
+            _deferral = null;
+        }
+    }
+}

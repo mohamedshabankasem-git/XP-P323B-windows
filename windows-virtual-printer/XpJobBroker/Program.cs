@@ -51,12 +51,16 @@ internal static class Program
                     var root = document.RootElement;
                     var id = root.GetProperty("id").GetString();
                     var convertedFile = root.GetProperty("convertedFile").GetString();
-                    if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(convertedFile))
-                        throw new InvalidDataException("The print job metadata is incomplete.");
+                    if (string.IsNullOrWhiteSpace(id) || !Guid.TryParseExact(id, "N", out _) ||
+                        string.IsNullOrWhiteSpace(convertedFile))
+                        throw new InvalidDataException("The print job metadata is incomplete or invalid.");
 
                     var sourcePath = Path.Combine(packageJobs, Path.GetFileName(convertedFile));
                     if (!File.Exists(sourcePath))
                         throw new FileNotFoundException("The converted PDF is missing.", sourcePath);
+                    var sourceInfo = new FileInfo(sourcePath);
+                    if (sourceInfo.Length <= 0 || sourceInfo.Length > 256L * 1024 * 1024)
+                        throw new InvalidDataException("The converted PDF is empty or exceeds the 256 MB job limit.");
 
                     var targetPath = Path.Combine(staging, id + ".pdf");
                     File.Copy(sourcePath, targetPath, overwrite: true);
@@ -67,7 +71,9 @@ internal static class Program
                         WorkingDirectory = Path.GetDirectoryName(appExe)!,
                         Arguments = "\"" + targetPath + "\""
                     };
-                    Process.Start(start);
+                    var launched = Process.Start(start);
+                    if (launched is null)
+                        throw new InvalidOperationException("Windows did not start the XP-P323B desktop application.");
 
                     File.WriteAllText(Path.Combine(staging, id + ".dispatched"), DateTimeOffset.UtcNow.ToString("O"));
                     File.Delete(claimPath);

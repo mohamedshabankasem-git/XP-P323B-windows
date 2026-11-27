@@ -50,6 +50,10 @@ A real queue needs an installed Windows printer driver and a spooler-side compon
 - Uninstall must remove only the XP-P323B Virtual Printer queue and components installed by this package.
 - A successful Flutter build is not evidence that a virtual queue is installed or operational.
 
+## Windows 11 implementation decision
+
+The selected path is the Windows 11 Print Support Virtual Printer (PSA v4 / Software Endpoint) architecture packaged as MSIX. See [WINDOWS11_VIRTUAL_PRINTER.md](WINDOWS11_VIRTUAL_PRINTER.md) for the Windows 11 baseline, package design, job workflow, security requirements, and acceptance tests.
+
 ## Current status
 
-The Windows Shell file-opening workflow and ESC/POS preview/print UI exist in the feature branch. The actual virtual printer queue, spooler component, and spooler-to-app transport are **not implemented yet**. This document records the implementation boundary so later work does not mistake Open with / Send to for print-dialog integration.
+The Windows Shell file-opening workflow and ESC/POS preview/print UI exist in the feature branch. The actual virtual printer queue, MSIX package, PSA background task, OXPS page conversion, and handoff to Flutter are **not implemented yet**. The selected initial engineering baseline is Windows 11 24H2 (build 26100) or later, x64; older Windows 11 releases are not yet verified. This document records the implementation boundary so later work does not mistake Open with / Send to for print-dialog integration.

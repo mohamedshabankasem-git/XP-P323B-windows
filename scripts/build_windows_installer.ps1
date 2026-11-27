@@ -27,6 +27,7 @@ try {
     $hasCodeSigningEku = @($ekuExtension.EnhancedKeyUsages | Where-Object { $_.Value -eq "1.3.6.1.5.5.7.3.3" }).Count -gt 0
   }
   if (-not $hasCodeSigningEku) { throw "The signing certificate is missing the Code Signing EKU (1.3.6.1.5.5.7.3.3)." }
+  $certificateSubject = $certificate.Subject
   $publicCertPath = Join-Path $payload "XP-P323B-TestSigning.cer"
   [IO.File]::WriteAllBytes($publicCertPath, $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
   $certificateSubject = $certificate.Subject

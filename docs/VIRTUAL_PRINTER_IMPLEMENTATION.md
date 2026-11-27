@@ -24,6 +24,7 @@ Windows 11 24H2 (build 26100) or later, x64, using Microsoft's Print Support App
 - OXPS-to-PDF conversion and package-private staging.
 - Packaged full-trust broker and per-user PDF handoff to Flutter.
 - Inno Setup writes the installed Flutter executable path to HKCU Software XP-P323B Windows / AppExePath.
+- Setup.exe packaging now includes the signed MSIX and package install/uninstall scripts. A signing script verifies the PFX subject matches CN=XP-P323B before building the combined installer.
 - Dedicated Windows CI workflow for MSIX compilation and unsigned artifact generation.
 
 ## Known limitations and gates
@@ -33,7 +34,7 @@ Windows 11 24H2 (build 26100) or later, x64, using Microsoft's Print Support App
 - Real queue registration and print-dialog submissions from Word, Excel, Notepad and Edge remain untested.
 - The Flutter direct-print preference requires a live physical printer connection in the Flutter process. Automatic restoration of the physical connection for a newly launched instance remains to be verified/implemented.
 - The broker handoff and cleanup logic need runtime tests for multiple jobs, interrupted launch, app-not-installed, malformed metadata and expired jobs.
-- Signed MSIX installation/removal has not yet been integrated into Inno Setup.
+- The Inno Setup install/uninstall entries are authored but have not been executed against a signed package. A trusted publisher-matching PFX is still required.
 
 ## Safety boundaries
 

@@ -47,7 +47,9 @@ Name: "{autodesktop}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; Worki
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install_virtual_printer.ps1"" -MsixPath ""{app}\VirtualPrinter\XP-P323B.VirtualPrinter.msix"" -CertificatePath ""{app}\VirtualPrinter\XP-P323B-TestSigning.cer"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\register_file_associations.ps1"" -ExePath ""{app}\{#MyAppExeName}"""; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch XP-P323B Windows"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall_virtual_printer.ps1"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\unregister_file_associations.ps1"""; Flags: runhidden waituntilterminated

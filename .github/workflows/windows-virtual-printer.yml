@@ -1,4 +1,4 @@
-name: Windows 11 Virtual Printer
+name: Windows 11 Virtual Printer and Installer
 
 on:
   push:
@@ -11,11 +11,16 @@ permissions:
   contents: read
 
 jobs:
-  build-psa-msix:
+  build-windows-installer:
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -25,23 +30,53 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Build Windows 11 PSA package
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Flutter Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter analyze
+          if ($LASTEXITCODE -ne 0) { throw "Flutter analyze failed." }
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows release build failed." }
+
+      - name: Build Windows 11 virtual-printer MSIX
         shell: pwsh
         run: ./scripts/build_virtual_printer.ps1
 
-      - name: Verify package output
+      - name: Sign MSIX and create unified Setup.exe with temporary test certificate
         shell: pwsh
         run: |
-          $packages = Get-ChildItem -Path windows-virtual-printer -Recurse -File -Include *.msix,*.msixbundle
-          if (-not $packages) {
-            throw "The PSA build completed without producing an MSIX package."
-          }
-          $packages | Select-Object FullName, Length | Format-Table -AutoSize
+          $password = [guid]::NewGuid().ToString("N") + "aA1!"
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=XP-P323B" -FriendlyName "XP-P323B CI Test Signing" -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddYears(1)
+          $pfx = Join-Path $env:RUNNER_TEMP "XP-P323B-TestSigning.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString -String $password -Force -AsPlainText) | Out-Null
+          $env:XP_P323B_SIGNING_PFX_BASE64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfx))
+          $env:XP_P323B_SIGNING_PFX_PASSWORD = $password
+          $msix = Get-ChildItem -Path windows-virtual-printer -Filter *.msix -Recurse -File | Select-Object -First 1
+          if (-not $msix) { throw "Virtual printer MSIX was not produced." }
+          ./scripts/build_windows_installer.ps1 -MsixPath $msix.FullName
+          if ($LASTEXITCODE -ne 0) { throw "Setup.exe build failed." }
+          Remove-Item $pfx -Force
+          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
 
-      - name: Upload unsigned MSIX package
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          $setup = "dist/XP-P323B-Setup.exe"
+          if (-not (Test-Path $setup -PathType Leaf)) { throw "Setup.exe was not created." }
+          $file = Get-Item $setup
+          if ($file.Length -lt 1MB) { throw "Setup.exe is unexpectedly small." }
+          Get-FileHash $setup -Algorithm SHA256 | Format-List
+          Write-Host "Verified $($file.FullName) ($($file.Length) bytes)"
+
+      - name: Upload unified Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: xp-p323b-virtual-printer-msix-unsigned
-          path: windows-virtual-printer/**/*.msix
+          name: XP-P323B-Setup-exe-test-signed
+          path: dist/XP-P323B-Setup.exe
           if-no-files-found: error
           retention-days: 14

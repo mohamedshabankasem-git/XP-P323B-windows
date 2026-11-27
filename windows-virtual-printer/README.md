@@ -10,9 +10,9 @@ Native Windows Print Support App (PSA v4) package for Windows 11 24H2 (build 261
 - Converts accepted OXPS jobs to PDF using the Windows PDL converter.
 - Stores PDF and metadata in the package-private LocalFolder.
 - Launches a packaged full-trust broker. The broker copies captured PDFs to the per-user XP-P323B staging folder and starts the installed Flutter app with the PDF path.
-- The Flutter app's existing file-open path then applies its saved preview/direct-print preference.
+- The Flutter app's existing file-open path then applies its saved preview/direct-print preference. The broker validates job IDs and rejects empty or oversized PDFs (over 256 MB).
 
-The broker handoff is implemented in source but has not yet passed a Windows build or runtime test. The direct-print path still requires a connected physical printer in the Flutter process. The MSIX package is unsigned and is not yet integrated into the customer Setup.exe.
+The broker handoff is implemented in source but has not yet passed a Windows build or runtime test. The direct-print path still requires a connected physical printer in the Flutter process. The MSIX package is unsigned. The Inno Setup script now includes the signed package and install/uninstall scripts; scripts/build_windows_installer.ps1 signs the MSIX with a trusted PFX and builds the combined Setup.exe. A matching trusted certificate is required.
 
 ## Project layout
 
@@ -29,7 +29,7 @@ Build on Windows 11 24H2 with Visual Studio 2026, Windows SDK 10.0.26100.0, .NET
 .\scripts\build_virtual_printer.ps1
 ```
 
-The CI package is intentionally unsigned. Production installation requires a trusted code-signing certificate whose subject matches the Publisher in Package.appxmanifest. Never silently trust a self-signed certificate.
+The CI package is intentionally unsigned. Production installation requires a trusted code-signing certificate whose subject exactly matches CN=XP-P323B in Package.appxmanifest. Never silently trust a self-signed certificate. After building Flutter Release and the MSIX, run scripts/build_windows_installer.ps1 -MsixPath <path-to-msix> with XP_P323B_SIGNING_PFX_BASE64 and XP_P323B_SIGNING_PFX_PASSWORD set.
 
 ## Handoff
 

@@ -13,6 +13,7 @@ dependencies:
   material_ui: ^1.0.0
   image: ^4.5.4
   file_picker: ^8.3.7
+  desktop_drop: ^0.5.0
   pdfx: ^2.11.0
 
 dev_dependencies:

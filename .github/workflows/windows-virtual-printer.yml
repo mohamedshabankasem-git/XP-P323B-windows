@@ -21,6 +21,56 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
+
+      - name: Enable Windows desktop and generate runner
+        shell: pwsh
+        run: |
+          flutter config --enable-windows-desktop
+          flutter create --platforms=windows --project-name xp_p323b_windows .
+          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows runner generation failed." }
+          ./scripts/configure_windows_bridge.ps1
+
+      - name: Get dependencies and configure PDFium
+        shell: pwsh
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed." }
+          dart run pdfx:install_windows
+          if ($LASTEXITCODE -ne 0) { throw "PDFium setup failed." }
+
+      - name: Analyze and test Flutter app
+        shell: pwsh
+        run: |
+          flutter analyze
+          if ($LASTEXITCODE -ne 0) { throw "Flutter analyze failed." }
+          flutter test
+          if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed." }
+
+      - name: Build Flutter Windows release
+        shell: pwsh
+        run: |
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows release build failed." }
+
+      - name: Bundle Visual C++ runtime and file association scripts
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "build/windows/x64/runner/Release"
+          $vswhere = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Microsoft Visual Studio/Installer/vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe was not found." }
+          $vsInstall = & $vswhere -latest -products '*' -property installationPath
+          $redistRoot = Join-Path $vsInstall "VC/Redist/MSVC"
+          $crtDir = Get-ChildItem $redistRoot -Directory | Sort-Object Name -Descending |
+            ForEach-Object { $candidate = Join-Path $_.FullName "x64/Microsoft.VC143.CRT"; if (Test-Path $candidate) { Get-Item $candidate } } |
+            Select-Object -First 1
+          if (-not $crtDir) { throw "The x64 Visual C++ runtime was not found." }
+          Copy-Item (Join-Path $crtDir.FullName "*") $releaseDir -Recurse -Force
+          $required = @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+          foreach ($dll in $required) { if (-not (Test-Path (Join-Path $releaseDir $dll))) { throw "Missing runtime DLL: $dll" } }
+          foreach ($file in @("register_file_associations.ps1","unregister_file_associations.ps1","Register-File-Associations.bat","Unregister-File-Associations.bat")) {
+            Copy-Item (Join-Path "scripts" $file) $releaseDir
+          }
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -30,22 +80,13 @@ jobs:
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --yes --no-progress
-
-      - name: Build Flutter Windows release
-        shell: pwsh
-        run: |
-          flutter pub get
-          flutter analyze
-          if ($LASTEXITCODE -ne 0) { throw "Flutter analyze failed." }
-          flutter build windows --release
-          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows release build failed." }
-
       - name: Build Windows 11 virtual-printer MSIX
         shell: pwsh
         run: ./scripts/build_virtual_printer.ps1
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
 
       - name: Sign MSIX and create unified Setup.exe with temporary test certificate
         shell: pwsh

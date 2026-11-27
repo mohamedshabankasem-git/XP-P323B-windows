@@ -14,6 +14,14 @@ Copy-Item -LiteralPath $MsixPath -Destination $signedMsix -Force
 $tempPfx = Join-Path ([System.IO.Path]::GetTempPath()) ("xp323b-signing-" + [guid]::NewGuid().ToString("N") + ".pfx")
 try {
   [IO.File]::WriteAllBytes($tempPfx, [Convert]::FromBase64String($env:XP_P323B_SIGNING_PFX_BASE64))
+  $securePassword = ConvertTo-SecureString $env:XP_P323B_SIGNING_PFX_PASSWORD -AsPlainText -Force
+  $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    $tempPfx, $securePassword, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+  if ($certificate.Subject -ne "CN=XP-P323B") {
+    throw "Signing certificate subject must exactly match the package Publisher CN=XP-P323B. Actual: $($certificate.Subject)"
+  }
+  if (-not $certificate.HasPrivateKey) { throw "The PFX does not contain a private signing key." }
+  $certificate.Dispose()
   $kits = Join-Path $env:ProgramFiles(x86) "Windows Kits\10\bin"
   $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction Stop |
     Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |

@@ -1,0 +1,16 @@
+<Window
+    x:Class="PrintSupportApp.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="XP-P323B Virtual Printer">
+  <Grid Padding="28" RowSpacing="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <TextBlock Text="XP-P323B Virtual Printer" FontSize="24" FontWeight="SemiBold" />
+    <TextBlock Grid.Row="1" Text="Windows 11 print workflow component. Captured jobs are staged securely for the desktop application integration." TextWrapping="Wrap" />
+    <TextBlock x:Name="StatusText" Grid.Row="2" Text="The virtual printer package is installed." TextWrapping="Wrap" />
+  </Grid>
+</Window>

@@ -3,9 +3,11 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'windows_printer_bridge.dart';
 import 'printer/print_document_loader.dart';
 import 'printer/print_workspace_page.dart';
+import 'printer/raster_print.dart';
 
 const _driverPage = 'https://www.xprintertech.com/kiosk-mecha/xp-p323b';
 
@@ -50,10 +52,13 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   String? _connectedDevice;
   bool _isSearching = false;
   bool _isOpeningFile = false;
+  bool _directPrintOnOpen = false;
+  bool _settingsLoaded = false;
 
   @override
   void initState() {
     super.initState();
+    _loadPrintPreferences();
     final initialPath = widget.initialFilePath;
     if (initialPath != null && initialPath.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,6 +71,47 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
     if (_paper == '58 mm - 400 dots') return 400;
     if (_paper == '80 mm') return 576;
     return 384;
+  }
+
+  Future<void> _loadPrintPreferences() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _directPrintOnOpen = preferences.getBool('directPrintOnOpen') ?? false;
+      _settingsLoaded = true;
+    });
+  }
+
+  Future<void> _setDirectPrintOnOpen(bool value) async {
+    setState(() => _directPrintOnOpen = value);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('directPrintOnOpen', value);
+  }
+
+  Future<void> _printDocumentDirectly(
+    PrintDocument document, {
+    required int paperWidth,
+  }) async {
+    if (_connectedDevice == null) {
+      throw StateError('لا توجد طابعة متصلة. اتصل بالطابعة أولاً.');
+    }
+    for (var index = 0; index < document.pages.length; index++) {
+      final payload = await RasterPrint.imageToEscPosAsync(
+        document.pages[index],
+        maxWidth: paperWidth,
+        alignment: 'left',
+        mode: 'floydSteinberg',
+      );
+      final written = await WindowsPrinterBridge.write(payload);
+      if (written != payload.length) {
+        throw StateError('لم يتم إرسال الصفحة ${index + 1} بالكامل.');
+      }
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم إرسال الملف مباشرة إلى الطابعة.')),
+      );
+    }
   }
 
   Future<void> _pickImage() async {
@@ -112,6 +158,10 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
         paperWidth: _paperWidth,
       );
       if (!mounted) return;
+      if (_directPrintOnOpen) {
+        await _printDocumentDirectly(document, paperWidth: _paperWidth);
+        return;
+      }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PrintWorkspacePage(
@@ -470,6 +520,17 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                                 'يتم إرسال بيانات ESC/POS Raster مباشرة عبر اتصال الطابعة المحدد.'),
                           ),
                           const Divider(),
+                          const Divider(),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _directPrintOnOpen,
+                            onChanged: _settingsLoaded ? _setDirectPrintOnOpen : null,
+                            secondary: const Icon(Icons.print),
+                            title: const Text('الطباعة المباشرة عند فتح الملف'),
+                            subtitle: const Text(
+                              'عند التفعيل، يرسل البرنامج الملف للطابعة فور فتحه دون عرض شاشة المعاينة. عند الإيقاف، تظهر المعاينة أولاً.',
+                            ),
+                          ),
                           const ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.preview_outlined),

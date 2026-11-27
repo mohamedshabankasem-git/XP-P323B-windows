@@ -100,7 +100,11 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $expectedIdentity = "XP323B.VirtualPrinter"
           $expectedPublisher = "CN=XP-P323B"
-          $candidates = Get-ChildItem -Path "windows-virtual-printer/PrintSupportApp" -Filter *.msix -Recurse -File
+          $packageSearchRoots = @("artifacts/VirtualPrinterPackages", "windows-virtual-printer/PrintSupportApp/AppPackages")
+          $candidates = foreach ($root in $packageSearchRoots) {
+            if (Test-Path $root) { Get-ChildItem -Path $root -Filter *.msix -Recurse -File }
+          }
+          $candidates = @($candidates | Sort-Object FullName -Unique)
           $msix = $null
           foreach ($candidate in $candidates) {
             $archive = [System.IO.Compression.ZipFile]::OpenRead($candidate.FullName)

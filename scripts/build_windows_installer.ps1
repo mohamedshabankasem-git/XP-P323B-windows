@@ -87,14 +87,14 @@ try {
   # The CI certificate is intentionally self-signed. Trust its public certificate
   # in the current user's Root store only for this verification step, then remove it.
   # The installed product separately places the public certificate in LocalMachine\\TrustedPeople.
-  $trustedRootCertificate = Import-Certificate -FilePath $publicCertPath -CertStoreLocation "Cert:\\CurrentUser\\Root"
+  $trustedRootCertificate = Import-Certificate -FilePath $publicCertPath -CertStoreLocation "Cert:\CurrentUser\Root"
   if (-not $trustedRootCertificate) { throw "Could not trust the temporary test certificate for CI signature verification." }
   & $signtool verify /pa /v $signedMsix
   if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed even after trusting the temporary CI certificate." }
 }
 finally {
   if ($trustedRootCertificate) {
-    Remove-Item -LiteralPath ("Cert:\\CurrentUser\\Root\\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath ("Cert:\CurrentUser\Root\\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue
   }
   if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force }

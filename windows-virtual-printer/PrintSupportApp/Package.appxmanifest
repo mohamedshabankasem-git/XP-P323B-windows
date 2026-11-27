@@ -26,7 +26,7 @@
         <printsupport2:Extension Category="windows.printSupportVirtualPrinterWorkflow" EntryPoint="Tasks.VirtualPrinterBackgroundTask">
           <printsupport2:PrintSupportVirtualPrinter DisplayName="XP-P323B Virtual Printer" PrinterUri="xpp323b:virtual-printer" PreferredInputFormat="application/oxps" PdcFile="Config\PrinterPdc.xml" />
         </printsupport2:Extension>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="XpJobBroker\XpJobBroker.exe" EntryPoint="Windows.FullTrustApplication" />
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="XpJobBroker\XpJobBroker.exe" EntryPoint="Windows.FullTrustApplication"><desktop:FullTrustProcess /></desktop:Extension>
       </Extensions>
     </Application>
   </Applications>

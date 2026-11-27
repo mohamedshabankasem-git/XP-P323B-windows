@@ -163,7 +163,7 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                           DropdownMenuItem(value: 'center', child: Text('وسط')),
                           DropdownMenuItem(value: 'right', child: Text('يمين')),
                         ],
-                        onChanged: _busy
+                        onChanged: _busy || _replacingFile
                             ? null
                             : (value) => setState(() {
                                   _alignment = value ?? 'left';
@@ -215,13 +215,13 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                           },
                         ),
                       ),
-                      if (widget.pages.length > 1) ...[
+                      if (_pages.length > 1) ...[
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: _busy || _pageIndex == 0
+                              onPressed: _busy || _replacingFile || _pageIndex == 0
                                   ? null
                                   : () => setState(() {
                                     _pageIndex--;
@@ -231,7 +231,7 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                               label: const Text('السابق'),
                             ),
                             OutlinedButton.icon(
-                              onPressed: _busy || _pageIndex == widget.pages.length - 1
+                              onPressed: _busy || _pageIndex == _pages.length - 1
                                   ? null
                                   : () => setState(() {
                                     _pageIndex++;

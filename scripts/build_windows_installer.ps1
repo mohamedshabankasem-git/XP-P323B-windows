@@ -1,5 +1,63 @@
 param([Parameter(Mandatory = $true)][string]$MsixPath)
 $ErrorActionPreference = "Stop"
+
+function Write-Stage {
+  param([string]$Message)
+  Write-Host ("[{0}] {1}" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), $Message)
+}
+
+function Quote-ProcessArgument {
+  param([string]$Value)
+  if ($Value -notmatch '[\s"]') { return $Value }
+  return '"' + ($Value -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+}
+
+function Invoke-ExternalProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string[]]$Arguments,
+    [Parameter(Mandatory = $true)][string]$Stage,
+    [Parameter(Mandatory = $true)][int]$TimeoutMinutes
+  )
+  $logRoot = Join-Path ([IO.Path]::GetTempPath()) ("xp323b-" + [guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
+  $stdout = Join-Path $logRoot "stdout.log"
+  $stderr = Join-Path $logRoot "stderr.log"
+  $argumentLine = ($Arguments | ForEach-Object { Quote-ProcessArgument ([string]$_) }) -join " "
+  $started = Get-Date
+  Write-Stage ("START {0}; timeout={1}m; executable={2}" -f $Stage, $TimeoutMinutes, $FilePath)
+  Write-Stage ("ARGS {0}" -f $argumentLine)
+  try {
+    $process = Start-Process -FilePath $FilePath -ArgumentList $argumentLine -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $deadline = $started.AddMinutes($TimeoutMinutes)
+    $nextHeartbeat = $started.AddSeconds(30)
+    while (-not $process.HasExited) {
+      if ((Get-Date) -ge $deadline) {
+        Write-Stage ("TIMEOUT {0}; stopping process id {1}" -f $Stage, $process.Id)
+        try { $process.Kill() } catch { Write-Warning ("Could not stop process {0}: {1}" -f $process.Id, $_.Exception.Message) }
+        try { $process.WaitForExit(15000) | Out-Null } catch {}
+        if (-not $process.HasExited) { throw ("{0} exceeded its {1}-minute timeout and could not be stopped." -f $Stage, $TimeoutMinutes) }
+        throw ("{0} exceeded its {1}-minute timeout." -f $Stage, $TimeoutMinutes)
+      }
+      if ((Get-Date) -ge $nextHeartbeat) {
+        $elapsed = [int]((Get-Date) - $started).TotalSeconds
+        Write-Stage ("RUNNING {0}; elapsed={1}s; processId={2}" -f $Stage, $elapsed, $process.Id)
+        $nextHeartbeat = (Get-Date).AddSeconds(30)
+      }
+      Start-Sleep -Seconds 2
+      $process.Refresh()
+    }
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Tail 120 | ForEach-Object { Write-Host $_ } }
+    if (Test-Path $stderr) { Get-Content -LiteralPath $stderr -Tail 120 | ForEach-Object { Write-Host $_ } }
+    $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+    Write-Stage ("END {0}; exitCode={1}; duration={2}s" -f $Stage, $exitCode, $duration)
+    if ($exitCode -ne 0) { throw ("{0} failed with exit code {1}." -f $Stage, $exitCode) }
+  }
+  finally { Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $flutterRelease = Join-Path $repoRoot "build\windows\x64\runner\Release"
 if (-not (Test-Path (Join-Path $flutterRelease "xp_p323b_windows.exe"))) { throw "Build the Flutter Windows release first." }
@@ -14,11 +72,12 @@ Copy-Item -LiteralPath $MsixPath -Destination $signedMsix -Force
 $tempPfx = Join-Path ([System.IO.Path]::GetTempPath()) ("xp323b-signing-" + [guid]::NewGuid().ToString("N") + ".pfx")
 $importedCertificate = $null
 $trustedRootCertificate = $null
+$stageStarted = Get-Date
+
 try {
+  Write-Stage "START Import and validate temporary signing certificate"
   [IO.File]::WriteAllBytes($tempPfx, [Convert]::FromBase64String($env:XP_P323B_SIGNING_PFX_BASE64))
   $password = ConvertTo-SecureString -String $env:XP_P323B_SIGNING_PFX_PASSWORD -AsPlainText -Force
-  # Persist the private key in the Windows certificate store; SignTool's PFX loader
-  # was failing with 0x8007000b on the hosted runner.
   $importedCertificate = Import-PfxCertificate -FilePath $tempPfx -CertStoreLocation "Cert:\CurrentUser\My" -Password $password -Exportable
   if (-not $importedCertificate) { throw "Could not import the MSIX signing certificate into CurrentUser\My." }
   $certificate = Get-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint)
@@ -36,34 +95,29 @@ try {
   $thumbprint = $certificate.Thumbprint
   $publicCertPath = Join-Path $payload "XP-P323B-TestSigning.cer"
   [IO.File]::WriteAllBytes($publicCertPath, $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+  Write-Stage ("END Import and validate temporary signing certificate; duration={0}s; subject={1}; thumbprint={2}" -f [math]::Round(((Get-Date) - $stageStarted).TotalSeconds, 1), $certificateSubject, $thumbprint)
+
   $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
   $kits = Join-Path $programFilesX86 "Windows Kits\10\bin"
-  $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction Stop |
-    Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
-    Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+  Write-Stage "Searching Windows SDK for x64 SignTool"
+  $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction Stop | Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
   if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
-  Write-Host "Signing MSIX with certificate-store key: $certificateSubject ($thumbprint)"
+
+  Write-Stage ("START Sign MSIX; certificate={0} ({1})" -f $certificateSubject, $thumbprint)
   & $signtool sign /debug /v /fd SHA256 /sha1 $thumbprint /s My $signedMsix
-  if ($LASTEXITCODE -ne 0) {
-    $signExitCode = $LASTEXITCODE
-    Write-Host "SignTool failed with exit code $signExitCode. Collecting current MSIX packaging diagnostics."
-    # Microsoft documents Event IDs 150, 151 and 152 as the actionable causes
-    # commonly wrapped by SignerSign 0x8007000B (publisher, block-map hash, content).
+  $signExitCode = $LASTEXITCODE
+  Write-Stage ("END Sign MSIX; exitCode={0}" -f $signExitCode)
+  if ($signExitCode -ne 0) {
+    Write-Host "SignTool failed. Collecting recent MSIX packaging diagnostics."
     $since = (Get-Date).AddMinutes(-10)
-    $appxLogs = Get-WinEvent -ListLog "*AppxPackaging*" -ErrorAction SilentlyContinue |
-      Where-Object { $_.IsEnabled -and $_.RecordCount -gt 0 }
+    $appxLogs = Get-WinEvent -ListLog "*AppxPackaging*" -ErrorAction SilentlyContinue | Where-Object { $_.IsEnabled -and $_.RecordCount -gt 0 }
     foreach ($log in $appxLogs) {
       Write-Host "---- Event log: $($log.LogName) ----"
       try {
-        $events = Get-WinEvent -FilterHashtable @{ LogName = $log.LogName; StartTime = $since } -ErrorAction Stop |
-          Where-Object { $_.Level -le 2 -or $_.Id -in @(150,151,152) } |
-          Select-Object -First 30 TimeCreated, Id, LevelDisplayName, Message
-        if ($events) { $events | Format-List | Out-String | Write-Host }
-        else { Write-Host "No recent error or actionable MSIX packaging events in this log." }
+        $events = Get-WinEvent -FilterHashtable @{ LogName = $log.LogName; StartTime = $since } -ErrorAction Stop | Where-Object { $_.Level -le 2 -or $_.Id -in @(150,151,152) } | Select-Object -First 30 TimeCreated, Id, LevelDisplayName, Message
+        if ($events) { $events | Format-List | Out-String | Write-Host } else { Write-Host "No recent error or actionable MSIX packaging events in this log." }
       } catch { Write-Warning "Could not read $($log.LogName): $($_.Exception.Message)" }
     }
-    # Print package metadata next to the event details to distinguish certificate
-    # publisher mismatch from block-map/hash or package-content problems.
     try {
       Add-Type -AssemblyName System.IO.Compression.FileSystem
       $zip = [System.IO.Compression.ZipFile]::OpenRead($signedMsix)
@@ -84,30 +138,38 @@ try {
     } catch { Write-Warning "Could not inspect MSIX manifest/block map: $($_.Exception.Message)" }
     throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
   }
-  # The CI certificate is intentionally self-signed. Trust its public certificate
-  # in the current user's Root store only for this verification step, then remove it.
-  # The installed product separately places the public certificate in LocalMachine\\TrustedPeople.
+
+  Write-Stage "START Trust temporary certificate for CI signature verification"
   $trustedRootCertificate = Import-Certificate -FilePath $publicCertPath -CertStoreLocation "Cert:\CurrentUser\Root"
   if (-not $trustedRootCertificate) { throw "Could not trust the temporary test certificate for CI signature verification." }
-  & $signtool verify /pa /v $signedMsix
-  if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed even after trusting the temporary CI certificate." }
+  Write-Stage "END Trust temporary certificate for CI signature verification"
+  Invoke-ExternalProcess -FilePath $signtool -Arguments @("verify", "/pa", "/v", $signedMsix) -Stage "Verify signed MSIX" -TimeoutMinutes 3
 }
 finally {
-  if ($trustedRootCertificate) {
-    Remove-Item -LiteralPath ("Cert:\CurrentUser\Root\\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue
-  }
+  Write-Stage "START Remove temporary signing certificates and PFX"
+  if ($trustedRootCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\Root\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
   if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
-  if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force }
+  if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force -ErrorAction SilentlyContinue }
+  Write-Stage "END Remove temporary signing certificates and PFX"
 }
+
 $iscc = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Inno Setup 6\ISCC.exe"
 if (-not (Test-Path $iscc)) {
   $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
   if ($command) { $iscc = $command.Source }
 }
 if (-not (Test-Path $iscc)) { throw "Inno Setup 6 (ISCC.exe) was not found." }
-Push-Location $PSScriptRoot
-try { & $iscc "XP-P323B.iss"; if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." } }
-finally { Pop-Location }
 $setup = Join-Path $repoRoot "dist\XP-P323B-Setup.exe"
+$dist = Split-Path -Parent $setup
+New-Item -ItemType Directory -Force -Path $dist | Out-Null
+if (Test-Path $setup) { Remove-Item -LiteralPath $setup -Force }
+$releaseBytes = (Get-ChildItem -LiteralPath $flutterRelease -File -Recurse | Measure-Object -Property Length -Sum).Sum
+$msixBytes = (Get-Item -LiteralPath $signedMsix).Length
+Write-Stage ("Installer input sizes: FlutterRelease={0:N1} MB; MSIX={1:N1} MB" -f ($releaseBytes / 1MB), ($msixBytes / 1MB))
+
+Push-Location $PSScriptRoot
+try { Invoke-ExternalProcess -FilePath $iscc -Arguments @("XP-P323B.iss") -Stage "Compile Inno Setup installer" -TimeoutMinutes 25 }
+finally { Pop-Location }
+
 if (-not (Test-Path $setup -PathType Leaf) -or (Get-Item $setup).Length -lt 1MB) { throw "Setup.exe is missing or unexpectedly small." }
-Write-Host "Created $setup"
+Write-Stage ("SUCCESS Created {0}; size={1:N1} MB" -f $setup, ((Get-Item $setup).Length / 1MB))

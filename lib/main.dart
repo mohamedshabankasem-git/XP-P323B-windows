@@ -89,7 +89,7 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   }
 
   Future<void> _printDocumentDirectly(
-    PrintDocument document, {
+    LoadedPrintDocument document, {
     required int paperWidth,
   }) async {
     if (_connectedDevice == null) {

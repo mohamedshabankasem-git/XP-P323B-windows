@@ -25,13 +25,6 @@
     <psk:Landscape psf2:psftype="Option" />
   </psk:PageOrientation>
 
-  <psk:PageResolution psf2:psftype="Feature">
-    <psk:ResolutionOption psf2:psftype="Option" psf2:default="true">
-      <psk:ResolutionX psf2:psftype="ScoredProperty" xsi:type="xsd:integer">203</psk:ResolutionX>
-      <psk:ResolutionY psf2:psftype="ScoredProperty" xsi:type="xsd:integer">203</psk:ResolutionY>
-    </psk:ResolutionOption>
-  </psk:PageResolution>
-
   <psk:PageOutputColor psf2:psftype="Feature">
     <psk:Monochrome psf2:psftype="Option" psf2:default="true">
       <psk:DeviceBitsPerPixel psf2:psftype="ScoredProperty" xsi:type="xsd:integer">1</psk:DeviceBitsPerPixel>

@@ -22,6 +22,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
         if (taskInstance.TriggerDetails is not PrintWorkflowVirtualPrinterTriggerDetails details)
         {
             _deferral.Complete();
+            _deferral = null;
             return;
         }
 
@@ -54,7 +55,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 $"{jobId}.pdf",
                 CreationCollisionOption.FailIfExists);
 
-            await using (var output = await pdfFile.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite))
+            using (var output = await pdfFile.OpenAsync(FileAccessMode.ReadWrite))
             {
                 var converter = args.GetPdlConverter(PrintWorkflowPdlConversionType.XpsToPdf);
                 var printTicket = args.GetJobPrintTicket();
@@ -75,18 +76,15 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 packageFamilyName = Package.Current.Id.FamilyName
             };
 
-            var json = JsonSerializer.Serialize(metadata, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
             var metadataFile = await jobsFolder.CreateFileAsync(
                 $"{jobId}.json",
                 CreationCollisionOption.FailIfExists);
-            await FileIO.WriteTextAsync(metadataFile, json);
+            await FileIO.WriteTextAsync(metadataFile, JsonSerializer.Serialize(metadata, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
 
-            // Mark the spooler job successful only after the complete converted file
-            // and metadata have been persisted in the package's private storage.
+            // Complete the spooler job only after the converted document is safely stored.
             status = PrintWorkflowSubmittedStatus.Succeeded;
         }
         catch (Exception exception)
@@ -103,7 +101,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
             }
             catch
             {
-                // Preserve the original failed job status if diagnostic logging fails.
+                // Keep the original failed status if diagnostic logging also fails.
             }
         }
         finally

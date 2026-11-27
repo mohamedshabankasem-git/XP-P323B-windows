@@ -29,9 +29,6 @@
     <Content Include="Config\PrinterPdc.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
     <ProjectCapability Include="Msix" />
   </ItemGroup>

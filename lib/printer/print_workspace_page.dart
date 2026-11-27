@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../windows_printer_bridge.dart';
+import 'print_document_loader.dart';
 import 'raster_print.dart';
 
 class PrintWorkspacePage extends StatefulWidget {
@@ -27,24 +29,53 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
   String _alignment = 'left';
   String _mode = 'floydSteinberg';
   bool _busy = false;
+  bool _replacingFile = false;
+  late String _documentName;
+  late List<Uint8List> _pages;
   late Future<Uint8List> _previewFuture;
 
   @override
   void initState() {
     super.initState();
+    _documentName = widget.name;
+    _pages = List<Uint8List>.of(widget.pages);
     _refreshPreview();
   }
 
   void _refreshPreview() {
     _previewFuture = compute(_previewWorker, <String, Object>{
-      'bytes': widget.pages[_pageIndex],
+      'bytes': _pages[_pageIndex],
       'width': widget.paperWidth,
       'alignment': _alignment,
       'mode': _mode,
     });
   }
 
+  Future<void> _replaceDocument(String path) async {
+    if (_busy || _replacingFile) return;
+    setState(() => _replacingFile = true);
+    try {
+      final document = await PrintDocumentLoader.fromPath(
+        path,
+        paperWidth: widget.paperWidth,
+      );
+      if (!mounted) return;
+      setState(() {
+        _documentName = document.name;
+        _pages = document.pages;
+        _pageIndex = 0;
+        _refreshPreview();
+      });
+      _message('تم استبدال الملف السابق بالملف الجديد.');
+    } catch (error) {
+      if (mounted) _message('تعذر استبدال الملف: $error');
+    } finally {
+      if (mounted) setState(() => _replacingFile = false);
+    }
+  }
+
   Future<void> _print({required bool allPages}) async {
+    if (_replacingFile) return;
     if (!widget.connected) {
       _message('اتصل بالطابعة أولاً قبل الطباعة.');
       return;
@@ -52,11 +83,11 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
     setState(() => _busy = true);
     try {
       final indices = allPages
-          ? List<int>.generate(widget.pages.length, (index) => index)
+          ? List<int>.generate(_pages.length, (index) => index)
           : <int>[_pageIndex];
       for (final index in indices) {
         final payload = await RasterPrint.imageToEscPosAsync(
-          widget.pages[index],
+          _pages[index],
           maxWidth: widget.paperWidth,
           alignment: _alignment,
           mode: _mode,
@@ -96,15 +127,24 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('معاينة الطباعة')),
-      body: Center(
+      body: DropTarget(
+        onDragDone: (detail) {
+          if (detail.files.isNotEmpty) {
+            _replaceDocument(detail.files.first.path);
+            if (detail.files.length > 1) {
+              _message('تم استلام أول ملف فقط. اسحب ملفًا واحدًا في كل مرة.');
+            }
+          }
+        },
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 920),
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text(widget.name, style: Theme.of(context).textTheme.titleLarge),
+              Text(_documentName, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
-              Text('الصفحة ${_pageIndex + 1} من ${widget.pages.length}'),
+              Text('الصفحة ${_pageIndex + 1} من ${_pages.length}'),
               const SizedBox(height: 12),
               Card(
                 child: Padding(
@@ -209,22 +249,23 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: _busy ? null : () => _print(allPages: false),
+                onPressed: _busy || _replacingFile ? null : () => _print(allPages: false),
                 icon: _busy
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.print),
-                label: Text(_busy ? 'جارٍ الإرسال...' : 'طباعة الصفحة الحالية'),
+                label: Text(_replacingFile ? 'جارٍ استبدال الملف...' : _busy ? 'جارٍ الإرسال...' : 'طباعة الصفحة الحالية'),
               ),
               if (widget.pages.length > 1) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _print(allPages: true),
+                  onPressed: _busy || _replacingFile ? null : () => _print(allPages: true),
                   icon: const Icon(Icons.print_outlined),
                   label: const Text('طباعة جميع الصفحات'),
                 ),
               ],
             ],
           ),
+        ),
         ),
       ),
     );

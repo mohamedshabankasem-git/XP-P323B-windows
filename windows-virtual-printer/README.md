@@ -1,47 +1,52 @@
 # XP-P323B Windows 11 virtual printer package
 
-This is the first native Windows Print Support App (PSA v4) component for the XP-P323B application. It targets Windows 11 24H2 (build 26100) or later, x64.
+Native Windows Print Support App (PSA v4) package for Windows 11 24H2 (build 26100) or later, x64.
 
-## What this phase implements
+## Implemented in this branch
 
-- Declares a Windows Print Support Virtual Printer named **XP-P323B Virtual Printer** using the Windows 11 PSA virtual-printer workflow.
-- Receives the OXPS print stream from the Windows print workflow.
-- Converts OXPS to PDF using the Windows print workflow PDL converter.
-- Stores each accepted job and a small metadata record in the package's private LocalFolder.
+- Registers a real Windows virtual print queue named **XP-P323B Virtual Printer** through the Windows Print Support Virtual Printer workflow.
+- Receives OXPS jobs submitted by Windows applications.
+- Opens the Print Support Job UI with Continue and Cancel actions.
+- Converts accepted OXPS jobs to PDF using the Windows PDL converter.
+- Stores PDF and metadata in the package-private LocalFolder.
+- Launches a packaged full-trust broker. The broker copies captured PDFs to the per-user XP-P323B staging folder and starts the installed Flutter app with the PDF path.
+- The Flutter app's existing file-open path then applies its saved preview/direct-print preference.
 
-This is a real print-workflow implementation foundation, not yet the finished Flutter handoff. The captured PDF is not yet forwarded to the existing Flutter preview or physical printer. Do not advertise this phase as end-to-end printing.
+The broker handoff is implemented in source but has not yet passed a Windows build or runtime test. The direct-print path still requires a connected physical printer in the Flutter process. The MSIX package is unsigned and is not yet integrated into the customer Setup.exe.
 
 ## Project layout
 
-- `PrintSupportApp`: packaged WinUI 3 / Windows App SDK app and package manifest.
-- `Tasks`: CsWinRT background task activated by the virtual printer workflow.
-- `PrintSupportApp/Config/PrinterPdc.xml`: printer capabilities supplied to Windows.
+- PrintSupportApp: packaged WinUI 3 / Windows App SDK PSA host, job UI and manifest.
+- Tasks: CsWinRT virtual-printer background task and OXPS-to-PDF conversion.
+- XpJobBroker: full-trust process that transfers staged jobs to the desktop app.
+- PrintSupportApp/Config/PrinterPdc.xml: print capabilities supplied to Windows.
 
 ## Build
 
-Build on Windows 11 24H2 with Visual Studio 2026, Windows SDK 10.0.26100.0, .NET 10 SDK, and MSIX Packaging Tools:
+Build on Windows 11 24H2 with Visual Studio 2026, Windows SDK 10.0.26100.0, .NET 10 SDK and MSIX Packaging Tools:
 
 ```powershell
 .\scripts\build_virtual_printer.ps1
 ```
 
-The CI package is intentionally unsigned. A production installer must use a trusted signing certificate whose subject matches the package Publisher. Do not install a self-signed certificate into machine trust stores as a workaround.
+The CI package is intentionally unsigned. Production installation requires a trusted code-signing certificate whose subject matches the Publisher in Package.appxmanifest. Never silently trust a self-signed certificate.
 
-## Job output
+## Handoff
 
-Captured jobs are written under the package's private LocalFolder in `VirtualPrinterJobs` as `<job-id>.pdf` and `<job-id>.json`. Windows removes the spooler job only after the converted output has been written successfully.
+The broker expects the Inno Setup installer to write the installed Flutter executable path to HKCU\Software\XP-P323B\Windows, value AppExePath. The installer script now writes that value. Captured PDFs are copied to %LOCALAPPDATA%\XP-P323B\VirtualPrinterJobs and retained for up to 24 hours.
 
-## Next integration gates
+## Remaining verification
 
-1. Add authenticated job handoff from the packaged PSA component to the Flutter desktop process.
-2. Open the existing Flutter print workspace by default and wait for Print/Cancel.
-3. Reuse the existing ESC/POS raster engine and USB/Bluetooth bridge for direct print when the persisted direct-print preference is enabled.
-4. Add signed MSIX deployment to the Inno Setup installer, including safe upgrade and uninstall behavior.
-5. Validate real print-dialog submissions from Word, Excel, Notepad, and Edge on a clean Windows 11 24H2 machine.
+1. Build the MSIX in Windows CI and fix any SDK/compiler issues.
+2. Install a signed package on a clean Windows 11 24H2 x64 VM and confirm the queue appears.
+3. Submit real jobs from Word, Excel, Notepad and Edge; test Continue, Cancel, multi-page and retry.
+4. Verify the broker launches Flutter and the correct PDF opens in the existing preview.
+5. Verify direct-print mode with a previously connected USB and Bluetooth XP-P323B.
+6. Integrate signed MSIX install/uninstall into Setup.exe and verify safe upgrades/removal.
 
-## Microsoft reference
+## Microsoft references
 
-Implementation is based on Microsoft's Print Support Virtual Printer and Windows App SDK C# PSA sample. See:
 - https://learn.microsoft.com/windows-hardware/drivers/devapps/msix-manifest-specification-print-support-virtual-printer
 - https://learn.microsoft.com/windows-hardware/drivers/devapps/print-support-app-v4-design-guide
+- https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.fulltrustprocesslauncher
 - https://github.com/microsoft/print-oem-samples/tree/master/PSASamples/WinAppSdk/CSharp

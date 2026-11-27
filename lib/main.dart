@@ -50,6 +50,8 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   String _connection = 'USB';
   String _language = 'العربية';
   String? _connectedDevice;
+  String? _savedUsbPrinterName;
+  String? _savedBluetoothPort;
   bool _isSearching = false;
   bool _isOpeningFile = false;
   bool _directPrintOnOpen = false;
@@ -79,8 +81,31 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
     if (!mounted) return;
     setState(() {
       _directPrintOnOpen = preferences.getBool('directPrintOnOpen') ?? false;
+      _connection = preferences.getString('printerConnection') ?? _connection;
+      _savedUsbPrinterName = preferences.getString('usbPrinterName');
+      _savedBluetoothPort = preferences.getString('bluetoothPrinterPort');
       _settingsLoaded = true;
     });
+  }
+
+  Future<void> _restoreSavedPrinterConnection() async {
+    if (_connectedDevice != null) return;
+    if (_connection == 'USB') {
+      final name = _savedUsbPrinterName;
+      if (name == null || name.isEmpty) {
+        throw StateError('لم يتم حفظ طابعة USB سابقة. اتصل بالطابعة من إعدادات البرنامج أولاً.');
+      }
+      await WindowsPrinterBridge.connectUsb(name);
+      if (mounted) setState(() => _connectedDevice = name);
+      return;
+    }
+
+    final port = _savedBluetoothPort;
+    if (port == null || port.isEmpty) {
+      throw StateError('لم يتم حفظ منفذ Bluetooth سابق. اتصل بالطابعة من إعدادات البرنامج أولاً.');
+    }
+    await WindowsPrinterBridge.connectBluetooth(port);
+    if (mounted) setState(() => _connectedDevice = port);
   }
 
   Future<void> _setDirectPrintOnOpen(bool value) async {
@@ -162,6 +187,9 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
       );
       if (!mounted) return;
       if (_directPrintOnOpen) {
+        if (_connectedDevice == null) {
+          await _restoreSavedPrinterConnection();
+        }
         await _printDocumentDirectly(document, paperWidth: _paperWidth);
         return;
       }
@@ -226,6 +254,15 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                         await WindowsPrinterBridge.connectUsb(name);
                       } else {
                         await WindowsPrinterBridge.connectBluetooth(detail);
+                      }
+                      final preferences = await SharedPreferences.getInstance();
+                      await preferences.setString('printerConnection', _connection);
+                      if (_connection == 'USB') {
+                        _savedUsbPrinterName = name;
+                        await preferences.setString('usbPrinterName', name);
+                      } else {
+                        _savedBluetoothPort = detail;
+                        await preferences.setString('bluetoothPrinterPort', detail);
                       }
                       if (!mounted) return;
                       setState(() => _connectedDevice = name);
@@ -429,6 +466,9 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
                             onChanged: (value) {
                               if (value != null) {
                                 setState(() => _connection = value);
+                                SharedPreferences.getInstance().then(
+                                  (preferences) => preferences.setString('printerConnection', value),
+                                );
                               }
                             },
                           ),

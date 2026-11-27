@@ -21,9 +21,15 @@ try {
   if (-not $certificate.HasPrivateKey) { throw "The PFX does not contain a private signing key." }
   if ($certificate.PublicKey.Oid.Value -ne "1.2.840.113549.1.1.1") { throw "MSIX test signing requires an RSA certificate. Actual public-key OID: $($certificate.PublicKey.Oid.Value)" }
   $codeSigningEku = $certificate.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" }
-  if (-not $codeSigningEku -or $codeSigningEku.Format($false) -notmatch "Code Signing") { throw "The signing certificate is missing the Code Signing EKU." }
+  $hasCodeSigningEku = $false
+  if ($codeSigningEku) {
+    $ekuExtension = [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($codeSigningEku, $codeSigningEku.Critical)
+    $hasCodeSigningEku = @($ekuExtension.EnhancedKeyUsages | Where-Object { $_.Value -eq "1.3.6.1.5.5.7.3.3" }).Count -gt 0
+  }
+  if (-not $hasCodeSigningEku) { throw "The signing certificate is missing the Code Signing EKU (1.3.6.1.5.5.7.3.3)." }
   $publicCertPath = Join-Path $payload "XP-P323B-TestSigning.cer"
   [IO.File]::WriteAllBytes($publicCertPath, $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+  $certificateSubject = $certificate.Subject
   $certificate.Dispose()
   $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
   $kits = Join-Path $programFilesX86 "Windows Kits\10\bin"
@@ -31,8 +37,10 @@ try {
     Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
   if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
-  Write-Host "Signing MSIX with RSA/SHA-256 certificate: $($certificate.Subject)"
-  & $signtool sign /debug /v /fd SHA256 /a /f $tempPfx /p $env:XP_P323B_SIGNING_PFX_PASSWORD /tr https://timestamp.acs.microsoft.com /td SHA256 $signedMsix
+  Write-Host "Signing MSIX with RSA/SHA-256 certificate: $certificateSubject"
+  # Test certificates are short-lived and do not need a trusted timestamp. Omitting /tr
+  # avoids timestamp-service URL failures and isolates MSIX signing itself.
+  & $signtool sign /debug /v /fd SHA256 /a /f $tempPfx /p $env:XP_P323B_SIGNING_PFX_PASSWORD $signedMsix
   if ($LASTEXITCODE -ne 0) {
     $signExitCode = $LASTEXITCODE
     Write-Host "SignTool failed with exit code $signExitCode. Recent AppxPackaging events follow:"

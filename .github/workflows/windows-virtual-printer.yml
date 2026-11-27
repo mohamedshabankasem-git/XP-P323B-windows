@@ -4,7 +4,7 @@ on:
   push:
     branches: [feature/windows11-virtual-printer-psa]
   pull_request:
-    branches: [main]
+    branches: [main, feature/windows-file-picker-preview-print]
   workflow_dispatch:
 
 permissions:

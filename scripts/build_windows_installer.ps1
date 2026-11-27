@@ -45,12 +45,42 @@ try {
   & $signtool sign /debug /v /fd SHA256 /sha1 $thumbprint /s My $signedMsix
   if ($LASTEXITCODE -ne 0) {
     $signExitCode = $LASTEXITCODE
-    Write-Host "SignTool failed with exit code $signExitCode. Recent AppxPackaging events follow:"
+    Write-Host "SignTool failed with exit code $signExitCode. Collecting current MSIX packaging diagnostics."
+    # Microsoft documents Event IDs 150, 151 and 152 as the actionable causes
+    # commonly wrapped by SignerSign 0x8007000B (publisher, block-map hash, content).
+    $since = (Get-Date).AddMinutes(-10)
+    $appxLogs = Get-WinEvent -ListLog "*AppxPackaging*" -ErrorAction SilentlyContinue |
+      Where-Object { $_.IsEnabled -and $_.RecordCount -gt 0 }
+    foreach ($log in $appxLogs) {
+      Write-Host "---- Event log: $($log.LogName) ----"
+      try {
+        $events = Get-WinEvent -FilterHashtable @{ LogName = $log.LogName; StartTime = $since } -ErrorAction Stop |
+          Where-Object { $_.Level -le 2 -or $_.Id -in @(150,151,152) } |
+          Select-Object -First 30 TimeCreated, Id, LevelDisplayName, Message
+        if ($events) { $events | Format-List | Out-String | Write-Host }
+        else { Write-Host "No recent error or actionable MSIX packaging events in this log." }
+      } catch { Write-Warning "Could not read $($log.LogName): $($_.Exception.Message)" }
+    }
+    # Print package metadata next to the event details to distinguish certificate
+    # publisher mismatch from block-map/hash or package-content problems.
     try {
-      Get-WinEvent -LogName "Microsoft-Windows-AppxPackaging/Operational" -MaxEvents 20 -ErrorAction Stop |
-        Select-Object -First 10 TimeCreated, Id, LevelDisplayName, Message |
-        Format-List | Out-String | Write-Host
-    } catch { Write-Warning "Could not read AppxPackaging operational log: $($_.Exception.Message)" }
+      Add-Type -AssemblyName System.IO.Compression.FileSystem
+      $zip = [System.IO.Compression.ZipFile]::OpenRead($signedMsix)
+      try {
+        $manifestEntry = $zip.GetEntry("AppxManifest.xml")
+        $blockMapEntry = $zip.GetEntry("AppxBlockMap.xml")
+        if ($manifestEntry) {
+          $reader = [IO.StreamReader]::new($manifestEntry.Open())
+          try { [xml]$packageManifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+          Write-Host "MSIX manifest Publisher: $($packageManifest.Package.Identity.Publisher)"
+        }
+        if ($blockMapEntry) {
+          $reader = [IO.StreamReader]::new($blockMapEntry.Open())
+          try { [xml]$blockMap = $reader.ReadToEnd() } finally { $reader.Dispose() }
+          Write-Host "MSIX block-map HashMethod: $($blockMap.BlockMap.HashMethod)"
+        }
+      } finally { $zip.Dispose() }
+    } catch { Write-Warning "Could not inspect MSIX manifest/block map: $($_.Exception.Message)" }
     throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
   }
   & $signtool verify /pa /v $signedMsix

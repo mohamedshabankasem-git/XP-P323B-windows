@@ -34,6 +34,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "payload\XP-P323B.VirtualPrinter.msix"; DestDir: "{app}\VirtualPrinter"; Flags: ignoreversion
+Source: "payload\XP-P323B-TestSigning.cer"; DestDir: "{app}\VirtualPrinter"; Flags: ignoreversion
 Source: "install_virtual_printer.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall_virtual_printer.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -45,10 +46,8 @@ Name: "{autoprograms}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; Work
 Name: "{autodesktop}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install_virtual_printer.ps1"" -MsixPath ""{app}\VirtualPrinter\XP-P323B.VirtualPrinter.msix"""; Flags: runhidden waituntilterminated runascurrentuser
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\register_file_associations.ps1"" -ExePath ""{app}\{#MyAppExeName}"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install_virtual_printer.ps1"" -MsixPath ""{app}\VirtualPrinter\XP-P323B.VirtualPrinter.msix"" -CertificatePath ""{app}\VirtualPrinter\XP-P323B-TestSigning.cer"""; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch XP-P323B Windows"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall_virtual_printer.ps1"""; Flags: runhidden waituntilterminated runascurrentuser
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\unregister_file_associations.ps1"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall_virtual_printer.ps1"""; Flags: runhidden waituntilterminated

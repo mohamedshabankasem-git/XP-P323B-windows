@@ -255,7 +255,7 @@ class _PrintWorkspacePageState extends State<PrintWorkspacePage> {
                     : const Icon(Icons.print),
                 label: Text(_replacingFile ? 'جارٍ استبدال الملف...' : _busy ? 'جارٍ الإرسال...' : 'طباعة الصفحة الحالية'),
               ),
-              if (widget.pages.length > 1) ...[
+              if (_pages.length > 1) ...[
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _busy || _replacingFile ? null : () => _print(allPages: true),

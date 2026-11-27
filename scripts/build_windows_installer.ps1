@@ -12,14 +12,18 @@ New-Item -ItemType Directory -Force -Path $payload | Out-Null
 $signedMsix = Join-Path $payload "XP-P323B.VirtualPrinter.msix"
 Copy-Item -LiteralPath $MsixPath -Destination $signedMsix -Force
 $tempPfx = Join-Path ([System.IO.Path]::GetTempPath()) ("xp323b-signing-" + [guid]::NewGuid().ToString("N") + ".pfx")
+$importedCertificate = $null
 try {
   [IO.File]::WriteAllBytes($tempPfx, [Convert]::FromBase64String($env:XP_P323B_SIGNING_PFX_BASE64))
-  $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    $tempPfx, $env:XP_P323B_SIGNING_PFX_PASSWORD,
-    [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+  $password = ConvertTo-SecureString -String $env:XP_P323B_SIGNING_PFX_PASSWORD -AsPlainText -Force
+  # Persist the private key in the Windows certificate store; SignTool's PFX loader
+  # was failing with 0x8007000b on the hosted runner.
+  $importedCertificate = Import-PfxCertificate -FilePath $tempPfx -CertStoreLocation "Cert:\CurrentUser\My" -Password $password -Exportable
+  if (-not $importedCertificate) { throw "Could not import the MSIX signing certificate into CurrentUser\My." }
+  $certificate = Get-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint)
   if ($certificate.Subject -cne "CN=XP-P323B") { throw "Certificate subject must exactly match package Publisher CN=XP-P323B. Actual: $($certificate.Subject)" }
-  if (-not $certificate.HasPrivateKey) { throw "The PFX does not contain a private signing key." }
-  if ($certificate.PublicKey.Oid.Value -ne "1.2.840.113549.1.1.1") { throw "MSIX test signing requires an RSA certificate. Actual public-key OID: $($certificate.PublicKey.Oid.Value)" }
+  if (-not $certificate.HasPrivateKey) { throw "The imported certificate does not contain a private signing key." }
+  if ($certificate.PublicKey.Oid.Value -ne "1.2.840.113549.1.1.1") { throw "MSIX test signing requires an RSA certificate." }
   $codeSigningEku = $certificate.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" }
   $hasCodeSigningEku = $false
   if ($codeSigningEku) {
@@ -28,20 +32,17 @@ try {
   }
   if (-not $hasCodeSigningEku) { throw "The signing certificate is missing the Code Signing EKU (1.3.6.1.5.5.7.3.3)." }
   $certificateSubject = $certificate.Subject
+  $thumbprint = $certificate.Thumbprint
   $publicCertPath = Join-Path $payload "XP-P323B-TestSigning.cer"
   [IO.File]::WriteAllBytes($publicCertPath, $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
-  $certificateSubject = $certificate.Subject
-  $certificate.Dispose()
   $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
   $kits = Join-Path $programFilesX86 "Windows Kits\10\bin"
   $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction Stop |
     Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
   if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
-  Write-Host "Signing MSIX with RSA/SHA-256 certificate: $certificateSubject"
-  # Test certificates are short-lived and do not need a trusted timestamp. Omitting /tr
-  # avoids timestamp-service URL failures and isolates MSIX signing itself.
-  & $signtool sign /debug /v /fd SHA256 /a /f $tempPfx /p $env:XP_P323B_SIGNING_PFX_PASSWORD $signedMsix
+  Write-Host "Signing MSIX with certificate-store key: $certificateSubject ($thumbprint)"
+  & $signtool sign /debug /v /fd SHA256 /sha1 $thumbprint /s My $signedMsix
   if ($LASTEXITCODE -ne 0) {
     $signExitCode = $LASTEXITCODE
     Write-Host "SignTool failed with exit code $signExitCode. Recent AppxPackaging events follow:"
@@ -55,7 +56,10 @@ try {
   & $signtool verify /pa /v $signedMsix
   if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed." }
 }
-finally { if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force } }
+finally {
+  if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
+  if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force }
+}
 $iscc = Join-Path ([Environment]::GetFolderPath("ProgramFilesX86")) "Inno Setup 6\ISCC.exe"
 if (-not (Test-Path $iscc)) {
   $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue

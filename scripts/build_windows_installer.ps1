@@ -13,6 +13,7 @@ $signedMsix = Join-Path $payload "XP-P323B.VirtualPrinter.msix"
 Copy-Item -LiteralPath $MsixPath -Destination $signedMsix -Force
 $tempPfx = Join-Path ([System.IO.Path]::GetTempPath()) ("xp323b-signing-" + [guid]::NewGuid().ToString("N") + ".pfx")
 $importedCertificate = $null
+$trustedRootCertificate = $null
 try {
   [IO.File]::WriteAllBytes($tempPfx, [Convert]::FromBase64String($env:XP_P323B_SIGNING_PFX_BASE64))
   $password = ConvertTo-SecureString -String $env:XP_P323B_SIGNING_PFX_PASSWORD -AsPlainText -Force
@@ -83,10 +84,18 @@ try {
     } catch { Write-Warning "Could not inspect MSIX manifest/block map: $($_.Exception.Message)" }
     throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
   }
+  # The CI certificate is intentionally self-signed. Trust its public certificate
+  # in the current user's Root store only for this verification step, then remove it.
+  # The installed product separately places the public certificate in LocalMachine\\TrustedPeople.
+  $trustedRootCertificate = Import-Certificate -FilePath $publicCertPath -CertStoreLocation "Cert:\\CurrentUser\\Root"
+  if (-not $trustedRootCertificate) { throw "Could not trust the temporary test certificate for CI signature verification." }
   & $signtool verify /pa /v $signedMsix
-  if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed." }
+  if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed even after trusting the temporary CI certificate." }
 }
 finally {
+  if ($trustedRootCertificate) {
+    Remove-Item -LiteralPath ("Cert:\\CurrentUser\\Root\\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue
+  }
   if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force }
 }

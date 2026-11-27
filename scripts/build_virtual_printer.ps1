@@ -21,7 +21,18 @@ if (-not $msbuild -or -not (Test-Path $msbuild)) {
   throw "MSBuild was not found. Install Visual Studio 2026 with MSIX and Windows App SDK tools."
 }
 
-& $msbuild $solution /restore /m /p:Configuration=Release /p:Platform=x64 /p:AppxPackageSigningEnabled=false
+$packageOutput = Join-Path $repoRoot "artifacts\\VirtualPrinterPackages\\"
+New-Item -ItemType Directory -Force -Path $packageOutput | Out-Null
+
+# A normal Build compiles the WinUI app but does not create an MSIX.
+# GenerateAppxPackageOnBuild is required for the single-project MSIX output.
+& $msbuild $solution /restore /m /p:Configuration=Release /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:UapAppxPackageBuildMode=SideloadOnly /p:AppxBundle=Never "/p:AppxPackageDir=$packageOutput"
 if ($LASTEXITCODE -ne 0) {
   throw "Virtual printer MSIX build failed with exit code $LASTEXITCODE."
 }
+
+$packages = Get-ChildItem -Path $packageOutput -Filter *.msix -Recurse -File
+if (-not $packages) {
+  throw "MSBuild completed but did not generate an MSIX package in $packageOutput."
+}
+$packages | ForEach-Object { Write-Host "Generated MSIX: $($_.FullName)" }

@@ -8,7 +8,11 @@ if (-not (Test-Path $solution)) {
   throw "Virtual printer solution was not found: $solution"
 }
 
-$vswhere = Join-Path $env:ProgramFiles(x86) "Microsoft Visual Studio\Installer\vswhere.exe"
+$programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
+if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+  throw "The 32-bit Program Files directory could not be resolved."
+}
+$vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) {
   throw "Visual Studio Installer (vswhere.exe) was not found."
 }

@@ -2,43 +2,43 @@
 
 ## Goal
 
-Install a Windows print queue named XP-P323B Virtual Printer. Applications such as Word and Excel submit normal Windows print jobs to it. The queue sends each job through the existing XP-P323B app, with preview-first by default and optional direct printing. The existing ESC/POS raster engine remains the only path that sends bytes to the physical printer.
+Install a Windows print queue named XP-P323B Virtual Printer. Word, Excel and other Windows applications submit normal print jobs to it. The queue hands each job to the existing XP-P323B desktop app, with preview-first by default and optional direct printing. The existing ESC/POS raster engine remains the only path that sends bytes to the physical printer.
 
 ## Selected architecture
 
 Windows 11 24H2 (build 26100) or later, x64, using Microsoft's Print Support App v4 / Software Endpoint architecture packaged as MSIX.
 
-1. MSIX declares the virtual-printer workflow and registers the queue.
-2. PSA background task receives OXPS print data.
-3. PSA invokes the Windows Print Support Job UI through PrintWorkflowUILauncher.LaunchAndCompleteUIAsync(). The job UI supports Continue and Cancel.
-4. After Continue, the background task converts OXPS to PDF and stores it in package-private LocalFolder.
-5. Pending: hand the staged PDF to the installed Flutter desktop app using a package full-trust broker and a per-user staging directory.
-6. Flutter opens the PDF in the existing preview workspace, or follows the persisted directPrintOnOpen setting and uses the existing ESC/POS raster + USB/Bluetooth bridge.
+1. The MSIX declares the Windows Print Support Virtual Printer workflow and registers the queue.
+2. A CsWinRT background task receives the OXPS print stream.
+3. PrintWorkflowUILauncher opens the PSA Job UI, which offers Continue and Cancel.
+4. On Continue, the task converts OXPS to PDF and stores it in the package-private LocalFolder.
+5. The task starts the package's full-trust broker.
+6. The broker claims each captured job, copies the PDF into the per-user XP-P323B staging directory, and launches the installed Flutter executable with the PDF path.
+7. Flutter's existing file-open flow loads the PDF and applies the persisted directPrintOnOpen setting. The existing ESC/POS raster engine and USB/Bluetooth bridge remain the physical output path.
 
 ## Current implementation in this branch
 
-- Packaged WinUI 3 / Windows App SDK PSA host and CsWinRT background task.
-- Virtual printer manifest entry and PDC capabilities.
-- Print Support Job UI activation page with Continue/Cancel.
-- OXPS-to-PDF conversion and package-private job staging.
-- PowerShell build scripts and a dedicated GitHub Actions build workflow.
-- The Flutter handoff, direct-print routing for incoming virtual jobs, signed MSIX installation and uninstall integration are not complete.
-- No changes have been made to the existing physical USB/Bluetooth transport or ESC/POS raster implementation.
+- WinUI 3 / Windows App SDK PSA host.
+- Virtual-printer manifest entry, print capabilities and job UI activation.
+- Continue/Cancel UI for submitted print jobs.
+- OXPS-to-PDF conversion and package-private staging.
+- Packaged full-trust broker and per-user PDF handoff to Flutter.
+- Inno Setup writes the installed Flutter executable path to HKCU Software XP-P323B Windows / AppExePath.
+- Dedicated Windows CI workflow for MSIX compilation and unsigned artifact generation.
 
-## Acceptance gates
+## Known limitations and gates
 
-- Build the MSIX on Windows 11 / Windows SDK 10.0.26100.
-- Install the signed package on a clean Windows 11 24H2 x64 machine and verify queue registration.
-- Send jobs from Word, Excel, Notepad and Edge; verify the UI appears, Continue captures the document and Cancel cancels it.
-- Implement authenticated full-trust broker handoff and connect it to Flutter's existing print workspace.
-- Verify preview-first and direct-print preference paths.
-- Test USB and Bluetooth physical output on XP-P323B hardware.
-- Verify upgrade/uninstall removes only this package and its virtual queue.
+- Source changes have not yet been validated by a successful Windows MSIX build. The current environment cannot run the Windows SDK/MSBuild toolchain.
+- The MSIX is unsigned. A trusted code-signing certificate matching the manifest Publisher is required before customer installation and Setup.exe integration.
+- Real queue registration and print-dialog submissions from Word, Excel, Notepad and Edge remain untested.
+- The Flutter direct-print preference requires a live physical printer connection in the Flutter process. Automatic restoration of the physical connection for a newly launched instance remains to be verified/implemented.
+- The broker handoff and cleanup logic need runtime tests for multiple jobs, interrupted launch, app-not-installed, malformed metadata and expired jobs.
+- Signed MSIX installation/removal has not yet been integrated into Inno Setup.
 
-## Security and packaging
+## Safety boundaries
 
-- Do not install unsigned packages silently or add an untrusted certificate to machine trust.
-- Do not modify the physical Xprinter driver.
-- Do not pass spooler RAW/OXPS bytes directly to the thermal printer.
-- Keep staged jobs private, bound job size and expiry, and clean up after acknowledgement/cancel/failure.
-- A successful Flutter build or MSIX compile alone is not proof of end-to-end printing.
+- Do not modify or replace the Xprinter physical printer driver.
+- Do not send Windows spooler OXPS/RAW bytes directly to the thermal printer.
+- Never silently install or trust an unsigned/self-signed package.
+- Uninstall must remove only the XP-P323B virtual printer package and its queue.
+- A successful Flutter build or MSIX compilation alone is not proof of end-to-end printing.

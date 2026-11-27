@@ -54,11 +54,12 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
   bool _isOpeningFile = false;
   bool _directPrintOnOpen = false;
   bool _settingsLoaded = false;
+  late Future<void> _preferencesReady;
 
   @override
   void initState() {
     super.initState();
-    _loadPrintPreferences();
+    _preferencesReady = _loadPrintPreferences();
     final initialPath = widget.initialFilePath;
     if (initialPath != null && initialPath.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -153,6 +154,8 @@ class _PrinterHomePageState extends State<PrinterHomePage> {
     if (_isOpeningFile) return;
     setState(() => _isOpeningFile = true);
     try {
+      await _preferencesReady;
+      if (!mounted) return;
       final document = await PrintDocumentLoader.fromPath(
         path,
         paperWidth: _paperWidth,

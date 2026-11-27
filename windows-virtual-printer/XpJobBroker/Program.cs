@@ -31,6 +31,7 @@ internal static class Program
             var staging = Path.Combine(localAppData, "XP-P323B", "VirtualPrinterJobs");
             Directory.CreateDirectory(staging);
             RemoveExpiredFiles(staging);
+            RemoveExpiredFiles(packageJobs);
 
             foreach (var metadataPath in Directory.EnumerateFiles(packageJobs, "*.json"))
             {
@@ -63,9 +64,9 @@ internal static class Program
                     var start = new ProcessStartInfo(appExe)
                     {
                         UseShellExecute = true,
-                        WorkingDirectory = Path.GetDirectoryName(appExe)!
+                        WorkingDirectory = Path.GetDirectoryName(appExe)!,
+                        Arguments = "\"" + targetPath + "\""
                     };
-                    start.ArgumentList.Add(targetPath);
                     Process.Start(start);
 
                     File.WriteAllText(Path.Combine(staging, id + ".dispatched"), DateTimeOffset.UtcNow.ToString("O"));

@@ -16,7 +16,7 @@
     <EnableDefaultPriItems>false</EnableDefaultPriItems>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <AppxBundle>Never</AppxBundle>
-    <BrokerPublishDir>$(MSBuildThisFileDirectory)..\..\..\artifacts\XpJobBroker\</BrokerPublishDir>
+    <BrokerPublishDir>$(MSBuildThisFileDirectory)..\..\artifacts\XpJobBroker\</BrokerPublishDir>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.*" />

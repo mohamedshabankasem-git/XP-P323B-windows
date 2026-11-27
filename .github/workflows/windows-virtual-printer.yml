@@ -97,8 +97,30 @@ jobs:
           Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString -String $password -Force -AsPlainText) | Out-Null
           $env:XP_P323B_SIGNING_PFX_BASE64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfx))
           $env:XP_P323B_SIGNING_PFX_PASSWORD = $password
-          $msix = Get-ChildItem -Path windows-virtual-printer -Filter *.msix -Recurse -File | Select-Object -First 1
-          if (-not $msix) { throw "Virtual printer MSIX was not produced." }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $expectedIdentity = "XP323B.VirtualPrinter"
+          $expectedPublisher = "CN=XP-P323B"
+          $candidates = Get-ChildItem -Path "windows-virtual-printer/PrintSupportApp" -Filter *.msix -Recurse -File
+          $msix = $null
+          foreach ($candidate in $candidates) {
+            $archive = [System.IO.Compression.ZipFile]::OpenRead($candidate.FullName)
+            try {
+              $entry = $archive.GetEntry("AppxManifest.xml")
+              if (-not $entry) { continue }
+              $reader = [IO.StreamReader]::new($entry.Open())
+              try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
+              $identity = $manifest.Package.Identity
+              Write-Host "MSIX candidate: $($candidate.FullName) | Identity=$($identity.Name) | Publisher=$($identity.Publisher)"
+              if ($identity.Name -eq $expectedIdentity -and $identity.Publisher -eq $expectedPublisher) {
+                $msix = $candidate
+                break
+              }
+            } finally { $archive.Dispose() }
+          }
+          if (-not $msix) {
+            throw "The app MSIX (Identity=$expectedIdentity, Publisher=$expectedPublisher) was not found. Refusing to sign a dependency MSIX."
+          }
+          Write-Host "Selected virtual-printer package: $($msix.FullName)"
           ./scripts/build_windows_installer.ps1 -MsixPath $msix.FullName
           if ($LASTEXITCODE -ne 0) { throw "Setup.exe build failed." }
           Remove-Item $pfx -Force

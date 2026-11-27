@@ -21,6 +21,27 @@ if (-not $msbuild -or -not (Test-Path $msbuild)) {
   throw "MSBuild was not found. Install Visual Studio 2026 with MSIX and Windows App SDK tools."
 }
 
+$brokerProject = Join-Path $repoRoot "windows-virtual-printer\\XpJobBroker\\XpJobBroker.csproj"
+$brokerPublish = Join-Path $repoRoot "artifacts\\XpJobBroker"
+if (-not (Test-Path $brokerProject)) {
+  throw "Virtual printer job broker project was not found: $brokerProject"
+}
+
+# Publish the broker to a stable location before MSBuild evaluates the app's
+# Content items. This guarantees the full broker payload is included in the MSIX.
+if (Test-Path $brokerPublish) {
+  Remove-Item -Path $brokerPublish -Recurse -Force
+}
+& dotnet publish $brokerProject --configuration Release --runtime win-x64 --self-contained false --output $brokerPublish
+if ($LASTEXITCODE -ne 0) {
+  throw "XpJobBroker publish failed with exit code $LASTEXITCODE."
+}
+if (-not (Test-Path (Join-Path $brokerPublish "XpJobBroker.exe") -PathType Leaf)) {
+  throw "XpJobBroker.exe was not produced in $brokerPublish."
+}
+Write-Host "Published job broker payload:"
+Get-ChildItem -Path $brokerPublish -File | ForEach-Object { Write-Host "  $($_.Name)" }
+
 $packageOutput = Join-Path $repoRoot "artifacts\\VirtualPrinterPackages\\"
 New-Item -ItemType Directory -Force -Path $packageOutput | Out-Null
 

@@ -6,7 +6,8 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:printsupport="http://schemas.microsoft.com/appx/manifest/printsupport/windows10"
   xmlns:printsupport2="http://schemas.microsoft.com/appx/manifest/printsupport/windows10/2"
-  IgnorableNamespaces="uap uap10 rescap printsupport printsupport2">
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap uap10 rescap printsupport printsupport2 desktop">
   <Identity Name="XP323B.VirtualPrinter" Publisher="CN=XP-P323B" Version="1.0.0.0" />
   <Properties>
     <DisplayName>XP-P323B Virtual Printer</DisplayName>
@@ -25,6 +26,7 @@
         <printsupport2:Extension Category="windows.printSupportVirtualPrinterWorkflow" EntryPoint="Tasks.VirtualPrinterBackgroundTask">
           <printsupport2:PrintSupportVirtualPrinter DisplayName="XP-P323B Virtual Printer" PrinterUri="xpp323b:virtual-printer" PreferredInputFormat="application/oxps" PdcFile="Config\PrinterPdc.xml" />
         </printsupport2:Extension>
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="XpJobBroker\XpJobBroker.exe" EntryPoint="Windows.FullTrustApplication" />
       </Extensions>
     </Application>
   </Applications>

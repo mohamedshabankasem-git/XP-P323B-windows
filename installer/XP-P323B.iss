@@ -34,6 +34,9 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[Registry]
+Root: HKCU; Subkey: "Software\XP-P323B\Windows"; ValueType: string; ValueName: "AppExePath"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletevalue
+
 [Icons]
 Name: "{autoprograms}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\XP-P323B Windows"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon

@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintSupportApp", "PrintSup
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tasks", "..\Tasks\Tasks.csproj", "{3BCA7B5C-9F43-4C3B-A40D-4B9F02E47A9C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XpJobBroker", "..\XpJobBroker\XpJobBroker.csproj", "{F8F73F02-5B90-46B7-BAC7-AC0A14B7CB32}"
+EndProject
 Global
   GlobalSection(SolutionConfigurationPlatforms) = preSolution
     Release|x64 = Release|x64
@@ -20,5 +22,9 @@ Global
     {3BCA7B5C-9F43-4C3B-A40D-4B9F02E47A9C}.Release|x64.Build.0 = Release|x64
     {3BCA7B5C-9F43-4C3B-A40D-4B9F02E47A9C}.Debug|x64.ActiveCfg = Debug|x64
     {3BCA7B5C-9F43-4C3B-A40D-4B9F02E47A9C}.Debug|x64.Build.0 = Debug|x64
+    {F8F73F02-5B90-46B7-BAC7-AC0A14B7CB32}.Release|x64.ActiveCfg = Release|x64
+    {F8F73F02-5B90-46B7-BAC7-AC0A14B7CB32}.Release|x64.Build.0 = Release|x64
+    {F8F73F02-5B90-46B7-BAC7-AC0A14B7CB32}.Debug|x64.ActiveCfg = Debug|x64
+    {F8F73F02-5B90-46B7-BAC7-AC0A14B7CB32}.Debug|x64.Build.0 = Debug|x64
   EndGlobalSection
 EndGlobal

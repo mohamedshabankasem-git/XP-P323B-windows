@@ -17,28 +17,28 @@
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <AppxBundle>Never</AppxBundle>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.*" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.*" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.*" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Tasks\Tasks.csproj" />
-    <Content Include="Config\PrinterPdc.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <ProjectReference Include="..\XpJobBroker\XpJobBroker.csproj" ReferenceOutputAssembly="false" />
+    <Content Include="Config\PrinterPdc.xml"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
     <Manifest Include="$(ApplicationManifest)" />
     <ProjectCapability Include="Msix" />
   </ItemGroup>
-
   <Target Name="CopyTasksWinmd" AfterTargets="Build">
     <ItemGroup>
       <_TasksWinmd Include="..\Tasks\bin\$(Platform)\$(Configuration)\$(TargetFramework)\Tasks.winmd" />
     </ItemGroup>
-    <Copy SourceFiles="@(_TasksWinmd)" DestinationFolder="$(OutputPath)"
-          SkipUnchangedFiles="true"
+    <Copy SourceFiles="@(_TasksWinmd)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true"
           Condition="Exists('..\Tasks\bin\$(Platform)\$(Configuration)\$(TargetFramework)\Tasks.winmd')" />
+    <ItemGroup>
+      <_BrokerFiles Include="..\XpJobBroker\bin\$(Configuration)\net10.0-windows10.0.26100.0\win-x64\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_BrokerFiles)" DestinationFiles="@(_BrokerFiles->'$(OutputPath)XpJobBroker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true"
+          Condition="'@(_BrokerFiles)' != ''" />
   </Target>
 </Project>

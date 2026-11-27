@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Background;
+using Windows.ApplicationModel.FullTrustProcessLauncher;
 using Windows.Graphics.Printing.Workflow;
 using Windows.Storage;
 
@@ -79,6 +80,7 @@ public sealed class VirtualPrinterBackgroundTask : IBackgroundTask
                 WriteIndented = true
             }));
 
+            await FullTrustProcessLauncher.LaunchFullTrustProcessForCurrentAppAsync();
             status = PrintWorkflowSubmittedStatus.Succeeded;
         }
         catch (Exception exception)

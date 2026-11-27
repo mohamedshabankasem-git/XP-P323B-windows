@@ -1,0 +1,15 @@
+<Page
+    x:Class="PrintSupportApp.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Padding="28" RowSpacing="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <TextBlock Text="XP-P323B Virtual Printer" FontSize="24" FontWeight="SemiBold" />
+    <TextBlock Grid.Row="1" Text="The Windows print queue is installed. Send a document to XP-P323B Virtual Printer from an application's Print dialog." TextWrapping="Wrap" />
+    <TextBlock x:Name="StatusText" Grid.Row="2" Text="Jobs are handled by the Windows print workflow." TextWrapping="Wrap" />
+  </Grid>
+</Page>

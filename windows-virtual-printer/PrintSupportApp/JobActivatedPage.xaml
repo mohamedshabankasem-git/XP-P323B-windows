@@ -1,0 +1,20 @@
+<Page
+    x:Class="PrintSupportApp.JobActivatedPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Padding="28" RowSpacing="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <TextBlock Text="XP-P323B Virtual Printer" FontSize="24" FontWeight="SemiBold" />
+    <TextBlock Grid.Row="1" Text="تم استلام مهمة طباعة من Windows. اضغط متابعة لفتحها في تطبيق XP-P323B، أو إلغاء لإيقاف المهمة." TextWrapping="Wrap" />
+    <TextBlock x:Name="StatusText" Grid.Row="2" Text="جاري تجهيز المهمة..." TextWrapping="Wrap" />
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+      <Button x:Name="CancelButton" Content="إلغاء" Click="OnCancel" />
+      <Button x:Name="ContinueButton" Content="متابعة" IsEnabled="False" Click="OnContinue" />
+    </StackPanel>
+  </Grid>
+</Page>

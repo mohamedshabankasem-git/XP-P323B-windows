@@ -17,8 +17,11 @@ try {
   $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     $tempPfx, $env:XP_P323B_SIGNING_PFX_PASSWORD,
     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
-  if ($certificate.Subject -ne "CN=XP-P323B") { throw "Certificate subject must exactly match package Publisher CN=XP-P323B. Actual: $($certificate.Subject)" }
+  if ($certificate.Subject -cne "CN=XP-P323B") { throw "Certificate subject must exactly match package Publisher CN=XP-P323B. Actual: $($certificate.Subject)" }
   if (-not $certificate.HasPrivateKey) { throw "The PFX does not contain a private signing key." }
+  if ($certificate.PublicKey.Oid.Value -ne "1.2.840.113549.1.1.1") { throw "MSIX test signing requires an RSA certificate. Actual public-key OID: $($certificate.PublicKey.Oid.Value)" }
+  $codeSigningEku = $certificate.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.37" }
+  if (-not $codeSigningEku -or $codeSigningEku.Format($false) -notmatch "Code Signing") { throw "The signing certificate is missing the Code Signing EKU." }
   $publicCertPath = Join-Path $payload "XP-P323B-TestSigning.cer"
   [IO.File]::WriteAllBytes($publicCertPath, $certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
   $certificate.Dispose()
@@ -28,8 +31,18 @@ try {
     Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
     Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
   if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
-  & $signtool sign /fd SHA256 /f $tempPfx /p $env:XP_P323B_SIGNING_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $signedMsix
-  if ($LASTEXITCODE -ne 0) { throw "MSIX signing failed." }
+  Write-Host "Signing MSIX with RSA/SHA-256 certificate: $($certificate.Subject)"
+  & $signtool sign /debug /v /fd SHA256 /a /f $tempPfx /p $env:XP_P323B_SIGNING_PFX_PASSWORD /tr https://timestamp.acs.microsoft.com /td SHA256 $signedMsix
+  if ($LASTEXITCODE -ne 0) {
+    $signExitCode = $LASTEXITCODE
+    Write-Host "SignTool failed with exit code $signExitCode. Recent AppxPackaging events follow:"
+    try {
+      Get-WinEvent -LogName "Microsoft-Windows-AppxPackaging/Operational" -MaxEvents 20 -ErrorAction Stop |
+        Select-Object -First 10 TimeCreated, Id, LevelDisplayName, Message |
+        Format-List | Out-String | Write-Host
+    } catch { Write-Warning "Could not read AppxPackaging operational log: $($_.Exception.Message)" }
+    throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
+  }
   & $signtool verify /pa /v $signedMsix
   if ($LASTEXITCODE -ne 0) { throw "MSIX signature verification failed." }
 }

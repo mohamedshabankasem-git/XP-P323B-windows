@@ -127,8 +127,12 @@ jobs:
           Write-Host "Selected virtual-printer package: $($msix.FullName)"
           ./scripts/build_windows_installer.ps1 -MsixPath $msix.FullName
           if ($LASTEXITCODE -ne 0) { throw "Setup.exe build failed." }
-          Remove-Item $pfx -Force
-          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+          # The installer script already removes the imported certificate. The original
+          # certificate may therefore no longer exist in CurrentUser\My; cleanup must be idempotent.
+          Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
+          $certificatePath = "Cert:\CurrentUser\My\$($cert.Thumbprint)"
+          Get-Item -LiteralPath $certificatePath -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
 
       - name: Verify installer output
         shell: pwsh

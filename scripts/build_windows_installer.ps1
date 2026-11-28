@@ -139,15 +139,24 @@ try {
     throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
   }
 
-  Write-Stage "START Trust temporary certificate for CI signature verification"
-  $trustedRootCertificate = Import-Certificate -FilePath $publicCertPath -CertStoreLocation "Cert:\CurrentUser\Root"
-  if (-not $trustedRootCertificate) { throw "Could not trust the temporary test certificate for CI signature verification." }
-  Write-Stage "END Trust temporary certificate for CI signature verification"
+  $certutil = Join-Path $env:SystemRoot "System32\certutil.exe"
+  if (-not (Test-Path -LiteralPath $certutil -PathType Leaf)) { throw "Windows certutil.exe was not found." }
+
+  Write-Stage "START Add temporary signing certificate to CurrentUser Root (60-second timeout)"
+  Invoke-ExternalProcess -FilePath $certutil -Arguments @("-user", "-addstore", "-f", "Root", $publicCertPath) -Stage "Trust temporary certificate for CI signature verification" -TimeoutMinutes 1
+  $trustedRootCertificate = $true
+  Write-Stage "END Add temporary signing certificate to CurrentUser Root"
+
   Invoke-ExternalProcess -FilePath $signtool -Arguments @("verify", "/pa", "/v", $signedMsix) -Stage "Verify signed MSIX" -TimeoutMinutes 3
 }
 finally {
   Write-Stage "START Remove temporary signing certificates and PFX"
-  if ($trustedRootCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\Root\" + $trustedRootCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
+  if ($trustedRootCertificate -and $thumbprint) {
+    try {
+      $certutil = Join-Path $env:SystemRoot "System32\certutil.exe"
+      Invoke-ExternalProcess -FilePath $certutil -Arguments @("-user", "-delstore", "Root", $thumbprint) -Stage "Remove temporary certificate from CurrentUser Root" -TimeoutMinutes 1
+    } catch { Write-Warning ("Could not remove temporary Root certificate: {0}" -f $_.Exception.Message) }
+  }
   if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force -ErrorAction SilentlyContinue }
   Write-Stage "END Remove temporary signing certificates and PFX"

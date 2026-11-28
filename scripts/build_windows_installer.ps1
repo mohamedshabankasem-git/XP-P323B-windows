@@ -139,24 +139,44 @@ try {
     throw "MSIX signing failed (SignTool exit code $signExitCode). See SignTool debug output and AppxPackaging events above."
   }
 
-  $certutil = Join-Path $env:SystemRoot "System32\certutil.exe"
-  if (-not (Test-Path -LiteralPath $certutil -PathType Leaf)) { throw "Windows certutil.exe was not found." }
+  Write-Stage "START Cryptographically verify MSIX signature without changing Windows certificate stores"
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  Add-Type -AssemblyName System.Security.Cryptography.Pkcs
 
-  Write-Stage "START Add temporary signing certificate to CurrentUser Root (60-second timeout)"
-  Invoke-ExternalProcess -FilePath $certutil -Arguments @("-user", "-addstore", "-f", "Root", $publicCertPath) -Stage "Trust temporary certificate for CI signature verification" -TimeoutMinutes 1
-  $trustedRootCertificate = $true
-  Write-Stage "END Add temporary signing certificate to CurrentUser Root"
+  $packageArchive = [System.IO.Compression.ZipFile]::OpenRead($signedMsix)
+  try {
+    $signatureEntry = $packageArchive.GetEntry("AppxSignature.p7x")
+    if (-not $signatureEntry) { throw "Signed MSIX does not contain AppxSignature.p7x." }
+    $signatureStream = $signatureEntry.Open()
+    try {
+      $signatureBytes = New-Object System.IO.MemoryStream
+      try {
+        $signatureStream.CopyTo($signatureBytes)
+        $rawSignature = $signatureBytes.ToArray()
+      } finally { $signatureBytes.Dispose() }
+    } finally { $signatureStream.Dispose() }
+  } finally { $packageArchive.Dispose() }
 
-  Invoke-ExternalProcess -FilePath $signtool -Arguments @("verify", "/pa", "/v", $signedMsix) -Stage "Verify signed MSIX" -TimeoutMinutes 3
+  # AppxSignature.p7x contains the 4-byte APPX marker followed by CMS SignedData.
+  if ($rawSignature.Length -le 4 -or [BitConverter]::ToString($rawSignature, 0, 4) -ne "50-4B-43-58") {
+    throw "AppxSignature.p7x has an invalid APPX signature marker or is truncated."
+  }
+  $cmsBytes = New-Object byte[] ($rawSignature.Length - 4)
+  [Array]::Copy($rawSignature, 4, $cmsBytes, 0, $cmsBytes.Length)
+  $signedCms = New-Object System.Security.Cryptography.Pkcs.SignedCms
+  $signedCms.Decode($cmsBytes)
+  if ($signedCms.SignerInfos.Count -ne 1) { throw "Expected exactly one MSIX package signer; found $($signedCms.SignerInfos.Count)." }
+  $signedCms.CheckSignature($true)
+  $actualSignerThumbprint = $signedCms.SignerInfos[0].Certificate.Thumbprint
+  if ($actualSignerThumbprint -ne $thumbprint) {
+    throw "MSIX signature signer mismatch. Expected $thumbprint; found $actualSignerThumbprint."
+  }
+  Write-Stage ("END Cryptographic MSIX signature verification; signer={0}; thumbprint={1}; certificate trust validation intentionally skipped" -f $certificateSubject, $actualSignerThumbprint)
 }
 finally {
   Write-Stage "START Remove temporary signing certificates and PFX"
-  if ($trustedRootCertificate -and $thumbprint) {
-    try {
-      $certutil = Join-Path $env:SystemRoot "System32\certutil.exe"
-      Invoke-ExternalProcess -FilePath $certutil -Arguments @("-user", "-delstore", "Root", $thumbprint) -Stage "Remove temporary certificate from CurrentUser Root" -TimeoutMinutes 1
-    } catch { Write-Warning ("Could not remove temporary Root certificate: {0}" -f $_.Exception.Message) }
-  }
+
   if ($importedCertificate) { Remove-Item -LiteralPath ("Cert:\CurrentUser\My\" + $importedCertificate.Thumbprint) -Force -ErrorAction SilentlyContinue }
   if (Test-Path $tempPfx) { Remove-Item -LiteralPath $tempPfx -Force -ErrorAction SilentlyContinue }
   Write-Stage "END Remove temporary signing certificates and PFX"

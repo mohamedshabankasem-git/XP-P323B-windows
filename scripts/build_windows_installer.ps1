@@ -196,7 +196,10 @@ $releaseBytes = (Get-ChildItem -LiteralPath $flutterRelease -File -Recurse | Mea
 $msixBytes = (Get-Item -LiteralPath $signedMsix).Length
 Write-Stage ("Installer input sizes: FlutterRelease={0:N1} MB; MSIX={1:N1} MB" -f ($releaseBytes / 1MB), ($msixBytes / 1MB))
 
-Push-Location $PSScriptRoot
+$installerDir = Join-Path $repoRoot "installer"
+$installerScript = Join-Path $installerDir "XP-P323B.iss"
+if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) { throw "Inno Setup script not found: $installerScript" }
+Push-Location $installerDir
 try { Invoke-ExternalProcess -FilePath $iscc -Arguments @("XP-P323B.iss") -Stage "Compile Inno Setup installer" -TimeoutMinutes 25 }
 finally { Pop-Location }
 
